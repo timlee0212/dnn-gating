@@ -398,7 +398,7 @@ class PGConv2d(nn.Module):
 
         self.quantMSB = TorchQuantize(pgabits)
         self.quantIn = TorchQuantize(abits)
-        self.quantOut = TorchQuantNoise(1)
+        self.quantOut = TorchQuantize(32)
     
         self.gt = SparseGreaterThan.apply if sparse_bp else GreaterThan.apply
 
@@ -406,7 +406,6 @@ class PGConv2d(nn.Module):
         """ number of output features computed at high precision """
         self.num_high = 0
         self.th = threshold
-        self.bn = nn.BatchNorm2d(out_channels)
 
     def forward(self, input):
         """ 
@@ -419,18 +418,18 @@ class PGConv2d(nn.Module):
         msbOut = self.conv(msbIn)
         msbOut = self.quantOut(msbOut)
         if self.th == 0.0:
-            return self.bn(msbOut)
+            return msbOut
 
         lsbIn = self.quantIn(input)-msbIn
         lsbOut = self.conv(lsbIn)  
         if self.th==1.0:
-            return self.bn(msbOut+lsbOut)    
+            return msbOut+lsbOut    
         """ Calculate the mask """
         mask = self.gt(torch.sigmoid(msbOut), self.th)
         """ update report """
         self.num_out = mask.cpu().numel()
         self.num_high = mask[mask>0].cpu().numel()
-        return self.bn(msbOut + mask*lsbOut)
+        return msbOut + mask*lsbOut
 
 
         #print("xxxxxxxxxxxxxxxx")

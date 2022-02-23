@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import numpy as np
 
 ##########
-##  PACT
+# PACT
 ##########
 
 
@@ -42,23 +42,23 @@ class PactClip(torch.autograd.Function):
         input, upper_bound, = ctx.saved_tensors
         grad_input = grad_output.clone()
         grad_upper_bound = grad_output.clone()
-        grad_input[input<0] = 0
-        grad_input[input>upper_bound] = 0
-        grad_upper_bound[input<=upper_bound] = 0
+        grad_input[input < 0] = 0
+        grad_input[input > upper_bound] = 0
+        grad_upper_bound[input <= upper_bound] = 0
         return grad_input, torch.sum(grad_upper_bound)
+
 
 class PactReLU(nn.Module):
     def __init__(self, upper_bound=4.0):
         super(PactReLU, self).__init__()
         self.upper_bound = nn.Parameter(torch.tensor(upper_bound))
-        
+
     def forward(self, input):
         return PactClip.apply(input, torch.tensor(4.0))
-        
 
 
 ##########
-##  Mask
+# Mask
 ##########
 
 
@@ -91,8 +91,9 @@ class SparseGreaterThan(torch.autograd.Function):
         """
         input, threshold, = ctx.saved_tensors
         grad_input = grad_output.clone()
-        grad_input[input<threshold] = 0
+        grad_input[input < threshold] = 0
         return grad_input, None
+
 
 class GreaterThan(torch.autograd.Function):
     """
@@ -125,7 +126,7 @@ class GreaterThan(torch.autograd.Function):
 
 
 ##########
-##  Quant
+# Quant
 ##########
 
 
@@ -160,6 +161,7 @@ class Floor(torch.autograd.Function):
         grad_input = grad_output.clone()
         return grad_input
 
+
 class Round(torch.autograd.Function):
     """
     We can implement our own custom autograd Functions by subclassing
@@ -190,6 +192,7 @@ class Round(torch.autograd.Function):
         # input, = ctx.saved_tensors
         grad_input = grad_output.clone()
         return grad_input
+
 
 class Clamp(torch.autograd.Function):
     """
@@ -222,8 +225,10 @@ class Clamp(torch.autograd.Function):
         grad_input = grad_output.clone()
         return grad_input, None, None
 
+
 class TorchBinarize(nn.Module):
     """ Binarizes a value in the range [-1,+1] to {-1,+1} """
+
     def __init__(self):
         super(TorchBinarize, self).__init__()
 
@@ -239,9 +244,9 @@ class TorchBinarize(nn.Module):
         return input
 
 
-
 class TorchRoundToBits(nn.Module):
     """ Quantize a tensor to a bitwidth larger than 1 """
+
     def __init__(self, bits=2):
         super(TorchRoundToBits, self).__init__()
         assert bits > 1, "RoundToBits is only used with bitwidth larger than 1."
@@ -255,14 +260,15 @@ class TorchRoundToBits(nn.Module):
         input = torch.abs(input)
         scaling = torch.max(input).detach() + self.epsilon
         import math
-        scaling = math.ceil(math.log(scaling,2))
+        scaling = math.ceil(math.log(scaling, 2))
         scaling = 2**scaling
-        input = Clamp.apply( input/scaling ,0.0, 1.0 )
+        input = Clamp.apply(input/scaling, 0.0, 1.0)
         shift = 2**(self.bits-1.0)
         """ round the mantessa bits to the required precision """
         outputInt = Round.apply(input * shift)*sign
         outputScale = scaling/shift
         return outputInt*outputScale
+
 
 class TorchTruncate(nn.Module):
     """ 
@@ -273,6 +279,7 @@ class TorchTruncate(nn.Module):
         b:  Number of bits in the fixed-point
         bh: Number of most-significant bits remained
     """
+
     def __init__(self, b=8, bh=4):
         super(TorchTruncate, self).__init__()
         assert b > 0, "Cannot truncate floating-point numbers (b=0)."
@@ -288,15 +295,16 @@ class TorchTruncate(nn.Module):
         """ get the mantessa bits """
         input = torch.abs(input)
         scaling = torch.max(input).detach() + self.epsilon
-        input = Clamp.apply( input/scaling ,0.0, 1.0 )
+        input = Clamp.apply(input/scaling, 0.0, 1.0)
         """ round the mantessa bits to the required precision """
-        input = Round.apply( input * (2.0**self.b-1.0) )
+        input = Round.apply(input * (2.0**self.b-1.0))
         """ truncate the mantessa bits """
-        input = Floor.apply( input / (2**(self.b-self.bh) * 1.0) )
+        input = Floor.apply(input / (2**(self.b-self.bh) * 1.0))
         """ rescale """
         input *= (2**(self.b-self.bh) * 1.0)
         input /= (2.0**self.b-1.0)
         return input * scaling * sign
+
 
 class TorchQuantize(nn.Module):
     """ 
@@ -305,6 +313,7 @@ class TorchQuantize(nn.Module):
         input: Input tensor
         bits:  Number of bits in the fixed-point
     """
+
     def __init__(self, bits=0):
         super(TorchQuantize, self).__init__()
         if bits == 0:
@@ -327,6 +336,7 @@ class TorchQuantNoise(nn.Module):
         input: Input tensor
         bits:  Number of bits in the fixed-point
     """
+
     def __init__(self, amp=0):
         super(TorchQuantNoise, self).__init__()
         self.amp = amp
@@ -335,11 +345,11 @@ class TorchQuantNoise(nn.Module):
         sign = torch.sign(input).detach()
         """ get the mantessa bits """
         input = torch.abs(input)
-        scaling = torch.max(input).detach()      
+        scaling = torch.max(input).detach()
         import math
-        scaling = math.ceil(math.log(scaling,2))
+        scaling = math.ceil(math.log(scaling, 2))
         scaling = 2**scaling
-        input = Clamp.apply( input/scaling ,0.0, 1.0 )
+        input = Clamp.apply(input/scaling, 0.0, 1.0)
         shift = 2**31
         """ round the mantessa bits to the required precision """
         outputInt = Round.apply(input*shift)*sign
@@ -347,22 +357,23 @@ class TorchQuantNoise(nn.Module):
         noise = torch.randn(input.shape).to(input)*2**15
         return (outputInt+self.amp*noise)*outputScale
 
-        
 
 class QConv2d(nn.Conv2d):
     """ 
     A convolutional layer with its weight tensor and input tensor quantized. 
     """
+
     def __init__(self, in_channels, out_channels, kernel_size, stride=1,
                  padding=0, dilation=1, groups=1, bias=True,
-                 padding_mode='zeros',wbits=8):
-        super(QConv2d, self).__init__(in_channels, out_channels, 
-                                              kernel_size, stride, 
-                                              padding, dilation, groups, 
-                                              bias, padding_mode)
+                 padding_mode='zeros', wbits=8):
+        super(QConv2d, self).__init__(in_channels, out_channels,
+                                      kernel_size, stride,
+                                      padding, dilation, groups,
+                                      bias, padding_mode)
         self.register_buffer('weight_fp', self.weight.data.clone())
 
         self.quantize_w = TorchQuantize(wbits)
+
     def forward(self, input):
         """ 
         1. Quantize the input tensor
@@ -372,8 +383,9 @@ class QConv2d(nn.Conv2d):
         """
         return F.conv2d(input,
                         self.quantize_w(self.weight),
-                        self.bias, self.stride, self.padding, 
+                        self.bias, self.stride, self.padding,
                         self.dilation, self.groups)
+
 
 class PGConv2d(nn.Module):
     """ 
@@ -386,20 +398,22 @@ class PGConv2d(nn.Module):
 
     **Note**: 
         1. PG predicts with <activations>.
-        2. bias must set to be False!
+        2. bias must set to be False!1
     """
+
     def __init__(self, in_channels, out_channels, kernel_size, stride=1,
                  padding=0, dilation=1, groups=1, bias=False,
-                 padding_mode='zeros', wbits=8, abits=8, pgabits=4, 
-                 sparse_bp=False,threshold = 0.99):
+                 padding_mode='zeros', wbits=8, abits=8, pgabits=4,
+                 sparse_bp=False, threshold=0.99):
         super(PGConv2d, self).__init__()
 
-        self.conv = QConv2d(in_channels, out_channels, kernel_size, stride,padding,dilation,groups,bias,padding_mode,wbits=wbits)
+        self.conv = QConv2d(in_channels, out_channels, kernel_size, stride,
+                            padding, dilation, groups, bias, padding_mode, wbits=wbits)
 
         self.quantMSB = TorchQuantize(pgabits)
         self.quantIn = TorchQuantize(abits)
         self.quantOut = TorchQuantize(32)
-    
+
         self.gt = SparseGreaterThan.apply if sparse_bp else GreaterThan.apply
 
         self.num_out = 0
@@ -421,22 +435,21 @@ class PGConv2d(nn.Module):
             return msbOut
 
         lsbIn = self.quantIn(input)-msbIn
-        lsbOut = self.conv(lsbIn)  
-        if self.th==1.0:
-            return msbOut+lsbOut    
+        lsbOut = self.conv(lsbIn)
+        if self.th == 1.0:
+            return msbOut+lsbOut
         """ Calculate the mask """
         mask = self.gt(torch.sigmoid(msbOut), self.th)
         """ update report """
         self.num_out = mask.cpu().numel()
-        self.num_high = mask[mask>0].cpu().numel()
+        self.num_high = mask[mask > 0].cpu().numel()
         return msbOut + mask*lsbOut
 
-
-        #print("xxxxxxxxxxxxxxxx")
+        # print("xxxxxxxxxxxxxxxx")
         #import matplotlib.pyplot as plt
         #channelNum = len(highA[0])
-        #i=0
-        #for channel in highA[0]:
+        # i=0
+        # for channel in highA[0]:
         #    img = channel.detach().cpu().numpy()
         #    plt.imshow(img)
         #    if channelNum==3:
@@ -444,5 +457,33 @@ class PGConv2d(nn.Module):
         #    else:
         #        plt.subplot(4,channelNum//4,i+1)
         #    i=i+1
-        #plt.show()
+        # plt.show()
+
+    @classmethod
+    def copy_conv(cls, conv, **kwargs):
+        """
+        Alternative constrtor to directly copy from the current convolutional layer
+        """
+        assert(conv.bias is None, "The bias of the conv must be false!")
+        new_conv = PGConv2d(conv.in_channels, conv.out_channels, 
+                            kernel_size=conv.kernel_size, 
+                            dilation=conv.dilation, 
+                            groups=conv.groups, 
+                            padding_mode=conv.padding_mode,
+                            stride=conv.stride, 
+                            padding=conv.padding, 
+                            bias=(not conv.bias is None), 
+                            wbits=kwargs['wbits'], 
+                            abits=kwargs['abits'], 
+                            pgabits=kwargs['pgabits'], 
+                            sparse_bp=kwargs['sparse_bp'], 
+                            threshold=kwargs['th'])
+
+        # Replicate weight
+        new_conv.conv.weight.data = conv.weight.data.clone(
+        )
+        if not new_conv.conv.bias is None:
+            new_conv.conv.bias = conv.bias.data.clone()
+        new_conv.conv.weight_fp = conv.weight.data.clone()
+        return new_conv
 

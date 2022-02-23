@@ -103,21 +103,8 @@ def replace_conv(model, skip_layers=None, **kwargs):
                 # Make sure the leaf node is a convolutioan operation
                 assert(isinstance(n_parent, torch.nn.Conv2d))
                 print("Replacing: ", layer_name)
-
-                ori_conv = n_parent
-
-    # TODO: Modify QConv2d to optimize the weight copying process
-                parent._modules[mkey] = PGConv2d(ori_conv.in_channels, ori_conv.out_channels, kernel_size=ori_conv.kernel_size, dilation=ori_conv.dilation, groups=ori_conv.groups, padding_mode=ori_conv.padding_mode,
-                                                 stride=ori_conv.stride, padding=ori_conv.padding, bias=(not ori_conv.bias is None), wbits=kwargs['wbits'], abits=kwargs['abits'], pgabits=kwargs['pgabits'], sparse_bp=kwargs['sparse_bp'], threshold=kwargs['th'])
-
-                # Replicate weight
-                parent._modules[mkey].conv.weight.data = ori_conv.weight.data.clone(
-                )
-                if parent._modules[mkey].conv.bias:
-                    parent._modules[mkey].conv.bias = ori_conv.bias.data.clone()
-                parent._modules[mkey].conv.weight_fp = ori_conv.weight.data.clone()
-
-                del ori_conv
+                parent._modules[mkey] = PGConv2d.copy_conv(n_parent, kwargs)
+                del n_parent
             else:
                 parent = n_parent
     return model

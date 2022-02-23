@@ -4,9 +4,12 @@ from __future__ import print_function
 
 import os
 import torch
+from utils.pg_utils import PGConv2d
+
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
+
     def __init__(self, name, fmt=':f'):
         self.name = name
         self.fmt = fmt
@@ -45,6 +48,7 @@ class ProgressMeter(object):
         fmt = '{:' + str(num_digits) + 'd}'
         return '[' + fmt + '/' + fmt.format(num_batches) + ']'
 
+
 def save_models(model, path, suffix=''):
     """Save model to given path
     Args:
@@ -55,7 +59,8 @@ def save_models(model, path, suffix=''):
     if not os.path.exists(path):
         os.makedirs(path)
     file_path = os.path.join(path, "{}.pt".format(suffix))
-    torch.save(model, file_path) #pwf file
+    torch.save(model, file_path)  # pwf file
+
 
 def load_models(model, path, suffix=''):
     """Load model from given path
@@ -66,7 +71,57 @@ def load_models(model, path, suffix=''):
     """
 
     file_path = os.path.join(path, "{}.pt".format(suffix))
-    model.load_state_dict(torch.load(file_path)) #pwf file
+    model.load_state_dict(torch.load(file_path))  # pwf file
+
+
+def replace_conv(model, skip_layers=None, **kwargs):
+    """
+    Args:
+        model: model to be replaced
+        skip_layers: [default None] skip some layers without replacing
+        kwargs: parameters related to precision gating
+    """
+
+    # List all conv layers in the model
+    conv_layers = []
+    for n, m in model.named_modules():
+        if isinstance(m, torch.nn.Conv2d):
+            conv_layers.append(n)
+
+    for (layer_id, layer_name) in enumerate(conv_layers):
+        if not skip_layers is None and layer_id in skip_layers:
+            print("Skipping: ", layer_name)
+            continue
+        # Get the strip path of each conv layer
+        name_seq = layer_name.split(".")
+        # Use DFS to replace each conv model with PGConv
+        parent = model
+        for mkey in name_seq:
+            n_parent = parent._modules[mkey]
+            # Current module is a leaf nod
+            if len(n_parent._modules) == 0:
+                # Make sure the leaf node is a convolutioan operation
+                assert(isinstance(n_parent, torch.nn.Conv2d))
+                print("Replacing: ", layer_name)
+
+                ori_conv = n_parent
+
+    # TODO: Modify QConv2d to optimize the weight copying process
+                parent._modules[mkey] = PGConv2d(ori_conv.in_channels, ori_conv.out_channels, kernel_size=ori_conv.kernel_size, dilation=ori_conv.dilation, groups=ori_conv.groups, padding_mode=ori_conv.padding_mode,
+                                                 stride=ori_conv.stride, padding=ori_conv.padding, bias=(not ori_conv.bias is None), wbits=kwargs['wbits'], abits=kwargs['abits'], pgabits=kwargs['pgabits'], sparse_bp=kwargs['sparse_bp'], threshold=kwargs['th'])
+
+                # Replicate weight
+                parent._modules[mkey].conv.weight.data = ori_conv.weight.data.clone(
+                )
+                if parent._modules[mkey].conv.bias:
+                    parent._modules[mkey].conv.bias = ori_conv.bias.data.clone()
+                parent._modules[mkey].conv.weight_fp = ori_conv.weight.data.clone()
+
+                del ori_conv
+            else:
+                parent = n_parent
+    return model
+
 
 def poly_decay_lr(optimizer, global_steps, total_steps, base_lr, end_lr, power):
     """Sets the learning rate to be polynomially decaying"""

@@ -35,9 +35,10 @@ parser.add_argument('--path', type=str, default=None, help='saved model path')
 parser.add_argument('--gpu', type=str, default='0', help='which gpus to use')
 
 # Training
-parser.add_argument('--batch_size', type=int, default=256, help='batch_size')
+parser.add_argument('--batch_size', type=int, default=64, help='batch_size')
 parser.add_argument('--epochs', type=int, default=200, help='epoch')
 parser.add_argument('--pretrained', action='store_true', help='pretrained')
+parser.add_argument('--resume', default='local', help='resume from checkpoint, valid when using pretrained')
 
 # Model
 parser.add_argument('--resize', type=int, default=32, help='resize_image')
@@ -57,7 +58,7 @@ parser.add_argument('--opt_eps', default=1e-8, type=float, metavar='EPSILON', he
 parser.add_argument('--opt_betas', default=None, type=float, nargs='+', metavar='BETA', help='Optimizer Betas (default: None, use opt default)')
 parser.add_argument('--clip_grad', type=float, default=None, metavar='NORM', help='Clip gradient norm (default: None, no clipping)')
 parser.add_argument('--momentum', type=float, default=0.9, metavar='M', help='SGD momentum (default: 0.9)')
-parser.add_argument('--weight_decay', type=float, default=0.05, help='saved model path')
+parser.add_argument('--weight_decay', type=float, default=1e-4, help='weight_decay')
 
 # Learning rate schedule parameters
 parser.add_argument('--sched', default='cosine', type=str, metavar='SCHEDULER', help='LR scheduler (default: "cosine"')
@@ -77,9 +78,9 @@ parser.add_argument('--decay_rate', type=float, default=0.1, metavar='RATE', hel
 parser.add_argument('--color_jitter', type=float, default=0.4, metavar='PCT', help='Color jitter factor (default: 0.4)')
 parser.add_argument('--aa', type=str, default='rand-m9-mstd0.5-inc1', metavar='NAME', help='Use AutoAugment policy. "v0" or "original". " + "(default: rand-m9-mstd0.5-inc1)'),
 parser.add_argument('--smoothing', type=float, default=0.1, help='Label smoothing (default: 0.1)')
-parser.add_argument('--train-interpolation', type=str, default='bicubic', help='Training interpolation (random, bilinear, bicubic default: "bicubic")')
-parser.add_argument('--repeated-aug', action='store_true')
-parser.add_argument('--no-repeated-aug', action='store_false', dest='repeated_aug')
+parser.add_argument('--train_interpolation', type=str, default='bicubic', help='Training interpolation (random, bilinear, bicubic default: "bicubic")')
+parser.add_argument('--repeated_aug', action='store_true')
+parser.add_argument('--no_repeated_aug', action='store_false', dest='repeated_aug')
 parser.set_defaults(repeated_aug=True)
 
    # * Random Erase params
@@ -103,8 +104,6 @@ parser.add_argument('--gtarget', type=float, default=0.0, help='gating target')
 parser.add_argument('--sparse_bp', action='store_true', help='sparse backprop of PGConv2d')
 
 parser.add_argument('--sigma', type=float, default=0.001, help='the penalty factor')
-parser.add_argument('--finetune', action='store_true', default=False, help='finetuning')
-parser.add_argument('--modelFt', type=str, default="self", help='finetuning name of model')
 parser.add_argument('--threshold', type=float, default=0.99, help='finetuning name of model')
 args = parser.parse_args()
 
@@ -121,39 +120,37 @@ if not args.dense:
 
 def train_model(trainloader, testloader, net, device):
 
-    loss_scaler = torch.cuda.amp.GradScaler()
-
     from timm.optim import create_optimizer
     optimizer = create_optimizer(args, net)
 
     from timm.scheduler import create_scheduler
     lr_scheduler, _ = create_scheduler(args, optimizer)
 
-    from timm.loss import SoftTargetCrossEntropy
-    criterion = SoftTargetCrossEntropy()
+    if args.mixup != 0:
+        from timm.data import Mixup
+        mixup_fn = Mixup(
+            mixup_alpha=args.mixup, cutmix_alpha=args.cutmix, cutmix_minmax=args.cutmix_minmax,
+            prob=args.mixup_prob, switch_prob=args.mixup_switch_prob, mode=args.mixup_mode,
+            label_smoothing=args.smoothing, num_classes = 10)
+        from timm.loss import SoftTargetCrossEntropy
+        criterion = SoftTargetCrossEntropy()
+    else:
+        criterion = torch.nn.CrossEntropyLoss()        
 
-    from timm.data import Mixup
-    mixup_fn = Mixup(
-        mixup_alpha=args.mixup, cutmix_alpha=args.cutmix, cutmix_minmax=args.cutmix_minmax,
-        prob=args.mixup_prob, switch_prob=args.mixup_switch_prob, mode=args.mixup_mode,
-        label_smoothing=args.smoothing, num_classes = 10)
-    
     correctBest = 0
 
     for epoch in range(args.epochs): # loop over the dataset multiple times
         # set printing functions
         batch_time = util.AverageMeter('Time/batch', ':.3f')
         losses = util.AverageMeter('Loss', ':6.2f')
-        top1 = util.AverageMeter('Acc', ':6.2f')
         progress = util.ProgressMeter(
                         len(trainloader),
-                        [losses, top1, batch_time],
+                        [losses, batch_time],
                         prefix="Epoch: [{}]".format(epoch+1)
                         )
 
         # switch the model to the training mode
         net.train()
-        print(epoch)
 
         print('current learning rate = {}'.format(optimizer.param_groups[0]['lr']))
         # each epoch
@@ -163,26 +160,24 @@ def train_model(trainloader, testloader, net, device):
         lr_scheduler.step(epoch)
 
         for i, data in enumerate(trainloader):
-            with torch.cuda.amp.autocast():
-                # get the inputs; data is a list of [inputs, labels]
-                inputs, labels = data[0].to(device), data[1].to(device)
+            # get the inputs; data is a list of [inputs, labels]
+            inputs, labels = data[0].to(device), data[1].to(device)
+
+            if args.mixup != 0:
                 inputs, labels = mixup_fn(inputs, labels)
-                # zero the parameter gradients
-                optimizer.zero_grad()
+            # zero the parameter gradients
+            optimizer.zero_grad()
 
-                # forward + backward + optimize
-                outputs = net(inputs)
+            # forward + backward + optimize
+            outputs = net(inputs)
 
-                loss = criterion(outputs, labels)
-            
-            losses.update(loss.item(), labels.size(0))
-            loss_scaler.scale(loss).backward()
+            loss = criterion(outputs, labels)
+            loss.backward()
             #for p in net.modules():
             #    if hasattr(p, 'weight_fp'):
             #        p.weight.data.copy_(p.weight_fp)
 
-            loss_scaler.step(optimizer)
-            loss_scaler.update()
+            optimizer.step()
   
             #for p in net.modules():
             #    if hasattr(p, 'weight_fp'):
@@ -191,9 +186,12 @@ def train_model(trainloader, testloader, net, device):
 
             # measure accuracy and record loss
             _, batch_predicted = torch.max(outputs.data, 1)
-            _, batch_labels    = torch.max(labels.data, 1)
+            if args.mixup != 0:
+                _, batch_labels    = torch.max(labels.data, 1)
+            else:
+                batch_labels = labels.data
             batch_accu = 100.0 * (batch_predicted == batch_labels).sum().item() / labels.size(0)
-            top1.update(batch_accu, labels.size(0))
+            losses.update(loss.item(), labels.size(0))
 
             # measure elapsed time
             batch_time.update(time.time() - end)
@@ -292,17 +290,20 @@ def main():
     # load datasets
     trainloader, testloader, classes = loadCIFAR10(args)
 
-    # create model
-    #print("Create {} model.".format(args.arch))
     net = createModel(args)
-    #print("Model Name:", modelName)
-    
 
     if args.pretrained:
-        checkpoint = torch.hub.load_state_dict_from_url(
-            net.default_cfg['url'], map_location='cpu', check_hash=True)
-        net.load_state_dict(checkpoint['model'])
-        net.head = torch.nn.Linear(net.num_features, 10)
+        classifier_name = net.default_cfg['classifier']
+        if args.resume == 'remote':
+            net._modules[classifier_name] = torch.nn.Linear(net.num_features, 10) 
+        else:
+            if args.resume == 'local':
+                checkpoint = torch.load(os.path.join(save_folder, "{}.pt".format(modelName)), map_location='cpu')
+            else:
+                checkpoint = torch.load(save_folder+args.resume, map_location='cpu')
+            if net._modules[classifier_name].out_features != 10:
+                net._modules[classifier_name] = torch.nn.Linear(net.num_features, 10) 
+            net.load_state_dict(checkpoint)
 
     net.to(device)
     if args.test:
@@ -314,8 +315,6 @@ def main():
     else:
         print("Start training.")
         train_model(trainloader, testloader, net, device)
-        test_accu(testloader, net, device)
-        per_class_test_accu(testloader, classes, net, device)
 
 
 if __name__ == "__main__":

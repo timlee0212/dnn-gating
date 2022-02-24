@@ -6,26 +6,14 @@ import torch
 import torchvision
 
 from timm.models import create_model
-
+from timm.models.registry import is_model
 
 def createModel(args):
     model_arch = args.arch
     kwargs = {'wbits':args.wbits, 'abits':args.abits, \
               'sparse_bp':args.sparse_bp, \
               'pact':args.ispact,'pgabits':args.pgabits,'th':args.threshold}
-    if model_arch == 'resnet20':
-        return m.resnet20(**kwargs)
-    elif model_arch == 'resnet18':
-        model = create_model(
-            args.arch,
-            pretrained=args.pretrained,
-            num_classes=1000
-        )
-        checkpoint = torch.hub.load_state_dict_from_url(
-                model.default_cfg['url'], map_location='cpu', check_hash=True)
-        model.load_state_dict(checkpoint)
-        return model
-    elif model_arch == 'deit_small_patch16_224':
+    if is_model(model_arch):
         model = create_model(
             args.arch,
             pretrained=True,
@@ -36,7 +24,13 @@ def createModel(args):
         )
         checkpoint = torch.hub.load_state_dict_from_url(
                 model.default_cfg['url'], map_location='cpu', check_hash=True)
-        model.load_state_dict(checkpoint['model'])
-        return model
+        if 'model' in checkpoint.keys():
+            model.load_state_dict(checkpoint['model'])
+        else:
+            model.load_state_dict(checkpoint)
+        return model    
+    elif model_arch == 'resnet20':
+        import model.cifar10_resnet as m 
+        return m.resnet20(**kwargs)
     else:
         raise NotImplementedError("Model architecture is not supported.")

@@ -465,7 +465,7 @@ class PGConv2d(nn.Module):
         Alternative constrtor to directly copy from the current convolutional layer
         """
         assert(conv.bias is None, "The bias of the conv must be false!")
-        new_conv = PGConv2d(conv.in_channels, conv.out_channels, 
+        new_conv = cls(conv.in_channels, conv.out_channels, 
                             kernel_size=conv.kernel_size, 
                             dilation=conv.dilation, 
                             groups=conv.groups, 
@@ -480,8 +480,7 @@ class PGConv2d(nn.Module):
                             threshold=kwargs['th'])
 
         # Replicate weight
-        new_conv.conv.weight.data = conv.weight.data.clone(
-        )
+        new_conv.conv.weight.data = conv.weight.data.clone()
         if not new_conv.conv.bias is None:
             new_conv.conv.bias = conv.bias.data.clone()
         new_conv.conv.weight_fp = conv.weight.data.clone()

@@ -36,7 +36,7 @@ parser.add_argument('--gpu', type=str, default='0', help='which gpus to use')
 
 # Training
 parser.add_argument('--batch_size', type=int, default=256, help='batch_size')
-parser.add_argument('--epochs', type=int, default=200, help='epoch')
+parser.add_argument('--epochs', type=int, default=300, help='epoch')
 parser.add_argument('--pretrained', action='store_true', help='pretrained')
 
 # Model

@@ -8,24 +8,27 @@ import matplotlib.pyplot as plt
 import utils.utils as util
 
 import numpy as np
-import os, time, sys
+import os
+import time
+import sys
 import argparse
 
 import utils.pg_utils as q
 
-#----------------------------
+# ----------------------------
 # Load the CIFAR-10 dataset.
-#----------------------------
+# ----------------------------
+
 
 def load_cifar10():
     transform_train = transforms.Compose([
-                    transforms.RandomHorizontalFlip(),
-                    transforms.RandomCrop(32, 4),
-                    transforms.ToTensor()
-        ])
+        transforms.RandomHorizontalFlip(),
+        transforms.RandomCrop(32, 4),
+        transforms.ToTensor()
+    ])
     transform_test = transforms.Compose([
-                    transforms.ToTensor()
-        ])
+        transforms.ToTensor()
+    ])
 
     # pin_memory=True makes transfering data from host to GPU faster
     trainset = torchvision.datasets.CIFAR10(root='/tmp/cifar_data', train=True,
@@ -44,15 +47,15 @@ def load_cifar10():
     return trainloader, testloader, classes
 
 
-#----------------------------
+# ----------------------------
 # Define the model.
-#----------------------------
+# ----------------------------
 
 def generate_model(model_arch):
     import model.cifar10_resnet as m
-    kwargs = {'wbits':args.wbits, 'abits':args.abits, \
-              'sparse_bp':args.sparse_bp, \
-              'pact':args.ispact,'pgabits':args.pgabits,'th':args.threshold}
+    kwargs = {'wbits': args.wbits, 'abits': args.abits,
+              'sparse_bp': args.sparse_bp,
+              'pact': args.ispact, 'pgabits': args.pgabits, 'th': args.threshold}
     if model_arch == 'resnet20':
         return m.resnet20(**kwargs)
     elif model_arch == 'resnet32':
@@ -61,10 +64,9 @@ def generate_model(model_arch):
         raise NotImplementedError("Model architecture is not supported.")
 
 
-
-#----------------------------
+# ----------------------------
 # Train the network.
-#----------------------------
+# ----------------------------
 
 def train_model(trainloader, testloader, net, device):
     if torch.cuda.device_count() > 1:
@@ -73,52 +75,53 @@ def train_model(trainloader, testloader, net, device):
         net = nn.DataParallel(net)
     net.to(device)
     # define the loss function
-    criterion = (nn.CrossEntropyLoss().cuda() 
-                if torch.cuda.is_available() else nn.CrossEntropyLoss())
-    # Scale the lr linearly with the batch size. 
+    criterion = (nn.CrossEntropyLoss().cuda()
+                 if torch.cuda.is_available() else nn.CrossEntropyLoss())
+    # Scale the lr linearly with the batch size.
     # Should be 0.1 when batch_size=128
     initial_lr = args.learningrate * batch_size / 128
     # initialize the optimizer
-    optimizer = optim.SGD(net.parameters(), 
-                          lr=initial_lr, 
+    optimizer = optim.SGD(net.parameters(),
+                          lr=initial_lr,
                           momentum=0.9,
                           weight_decay=_WEIGHT_DECAY)
     # multiply the lr by 0.1 at 100, 150, and 200 epochs
     div = num_epoch // 3
-    lr_decay_milestones = [div, div*2,div*3]
+    lr_decay_milestones = [div, div*2, div*3]
     scheduler = optim.lr_scheduler.MultiStepLR(
-                        optimizer, 
-                        milestones=lr_decay_milestones, 
-                        gamma=0.1,
-                        last_epoch=_LAST_EPOCH)
+        optimizer,
+        milestones=lr_decay_milestones,
+        gamma=0.1,
+        last_epoch=_LAST_EPOCH)
     if args.finetune:
         if args.modelFt != "self":
             modelName_ = args.arch+"_"+args.modelFt
         else:
             modelName_ = modelName
-        print("Loading Pretrained Model:",modelName_)
-        util.load_models(net,save_folder,suffix=modelName_)
+        print("Loading Pretrained Model:", modelName_)
+        util.load_models(net, save_folder, suffix=modelName_)
         correctBest = test_accu(testloader, net, device)
     else:
         correctBest = 0
 
-    for epoch in range(num_epoch): # loop over the dataset multiple times
+    for epoch in range(num_epoch):  # loop over the dataset multiple times
 
         # set printing functions
         batch_time = util.AverageMeter('Time/batch', ':.3f')
         losses = util.AverageMeter('Loss', ':6.2f')
         top1 = util.AverageMeter('Acc', ':6.2f')
         progress = util.ProgressMeter(
-                        len(trainloader),
-                        [losses, top1, batch_time],
-                        prefix="Epoch: [{}]".format(epoch+1)
-                        )
+            len(trainloader),
+            [losses, top1, batch_time],
+            prefix="Epoch: [{}]".format(epoch+1)
+        )
 
         # switch the model to the training mode
         net.train()
 
-        print('current learning rate = {}'.format(optimizer.param_groups[0]['lr']))
-        
+        print('current learning rate = {}'.format(
+            optimizer.param_groups[0]['lr']))
+
         # each epoch
         end = time.time()
         for i, data in enumerate(trainloader):
@@ -127,7 +130,6 @@ def train_model(trainloader, testloader, net, device):
 
             # zero the parameter gradients
             optimizer.zero_grad()
-  
 
             # forward + backward + optimize
             outputs = net(inputs)
@@ -138,15 +140,15 @@ def train_model(trainloader, testloader, net, device):
                     p.weight.data.copy_(p.weight_fp)
 
             optimizer.step()
-  
+
             for p in net.modules():
                 if hasattr(p, 'weight_fp'):
-                    p.weight_fp.data.copy_(p.weight.data.clamp_(-1,1))
-
+                    p.weight_fp.data.copy_(p.weight.data.clamp_(-1, 1))
 
             # measure accuracy and record loss
             _, batch_predicted = torch.max(outputs.data, 1)
-            batch_accu = 100.0 * (batch_predicted == labels).sum().item() / labels.size(0)
+            batch_accu = 100.0 * (batch_predicted ==
+                                  labels).sum().item() / labels.size(0)
             losses.update(loss.item(), labels.size(0))
             top1.update(batch_accu, labels.size(0))
 
@@ -154,9 +156,9 @@ def train_model(trainloader, testloader, net, device):
             batch_time.update(time.time() - end)
             end = time.time()
 
-            if i % 50 == 49:    
+            if i % 50 == 49:
                 # print statistics every 100 mini-batches each epoch
-                progress.display(i) # i = batch id in the epoch
+                progress.display(i)  # i = batch id in the epoch
 
         # update the learning rate
         scheduler.step()
@@ -169,20 +171,20 @@ def train_model(trainloader, testloader, net, device):
             util.save_models(net.state_dict(), save_folder, suffix=modelName)
             correctBest = correct
 
-
     print('Finished Training')
 
 
-#----------------------------
+# ----------------------------
 # Test accuracy.
-#----------------------------
+# ----------------------------
 
 def test_accu(testloader, net, device):
     net.to(device)
-    cnt_out = np.zeros(21) # this 9 is hardcoded for ResNet-20
-    cnt_high = np.zeros(21) # this 9 is hardcoded for ResNet-20
+    cnt_out = np.zeros(21)  # this 9 is hardcoded for ResNet-20
+    cnt_high = np.zeros(21)  # this 9 is hardcoded for ResNet-20
     num_out = []
     num_high = []
+
     def _report_sparsity(m):
         classname = m.__class__.__name__
         if isinstance(m, q.PGConv2d):
@@ -200,7 +202,7 @@ def test_accu(testloader, net, device):
             _, predicted = torch.max(outputs.data, 1)
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
-            
+
             net.apply(_report_sparsity)
             cnt_out += np.array(num_out)
             cnt_high += np.array(num_high)
@@ -209,13 +211,14 @@ def test_accu(testloader, net, device):
     print(modelName)
     print('Accuracy of the network on the 10000 test images: %.1f %%' % (
         100 * correct / total))
-    print('Sparsity of the update phase: %.1f %%' % (100-np.sum(cnt_high)*1.0/np.sum(cnt_out)*100))
+    print('Sparsity of the update phase: %.1f %%' %
+          (100-np.sum(cnt_high)*1.0/np.sum(cnt_out)*100))
     return correct
 
 
-#----------------------------
+# ----------------------------
 # Test accuracy per class
-#----------------------------
+# ----------------------------
 
 def per_class_test_accu(testloader, classes, net, device):
     class_correct = list(0. for i in range(10))
@@ -231,7 +234,6 @@ def per_class_test_accu(testloader, classes, net, device):
                 label = labels[i]
                 class_correct[label] += c[i].item()
                 class_total[label] += 1
-
 
     for i in range(10):
         print('Accuracy of %5s : %.1f %%' % (

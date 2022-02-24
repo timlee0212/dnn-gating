@@ -35,7 +35,7 @@ parser.add_argument('--path', type=str, default=None, help='saved model path')
 parser.add_argument('--gpu', type=str, default='0', help='which gpus to use')
 
 # Training
-parser.add_argument('--batch_size', type=int, default=64, help='batch_size')
+parser.add_argument('--batch_size', type=int, default=256, help='batch_size')
 parser.add_argument('--epochs', type=int, default=200, help='epoch')
 parser.add_argument('--pretrained', action='store_true', help='pretrained')
 
@@ -121,6 +121,8 @@ if not args.dense:
 
 def train_model(trainloader, testloader, net, device):
 
+    loss_scaler = torch.cuda.amp.GradScaler()
+
     from timm.optim import create_optimizer
     optimizer = create_optimizer(args, net)
 
@@ -161,22 +163,26 @@ def train_model(trainloader, testloader, net, device):
         lr_scheduler.step(epoch)
 
         for i, data in enumerate(trainloader):
-            # get the inputs; data is a list of [inputs, labels]
-            inputs, labels = data[0].to(device), data[1].to(device)
-            inputs, labels = mixup_fn(inputs, labels)
-            # zero the parameter gradients
-            optimizer.zero_grad()
+            with torch.cuda.amp.autocast():
+                # get the inputs; data is a list of [inputs, labels]
+                inputs, labels = data[0].to(device), data[1].to(device)
+                inputs, labels = mixup_fn(inputs, labels)
+                # zero the parameter gradients
+                optimizer.zero_grad()
 
-            # forward + backward + optimize
-            outputs = net(inputs)
+                # forward + backward + optimize
+                outputs = net(inputs)
 
-            loss = criterion(outputs, labels)
-            loss.backward()
+                loss = criterion(outputs, labels)
+            
+            losses.update(loss.item(), labels.size(0))
+            loss_scaler.scale(loss).backward()
             #for p in net.modules():
             #    if hasattr(p, 'weight_fp'):
             #        p.weight.data.copy_(p.weight_fp)
 
-            optimizer.step()
+            loss_scaler.step(optimizer)
+            loss_scaler.update()
   
             #for p in net.modules():
             #    if hasattr(p, 'weight_fp'):
@@ -187,7 +193,6 @@ def train_model(trainloader, testloader, net, device):
             _, batch_predicted = torch.max(outputs.data, 1)
             _, batch_labels    = torch.max(labels.data, 1)
             batch_accu = 100.0 * (batch_predicted == batch_labels).sum().item() / labels.size(0)
-            losses.update(loss.item(), labels.size(0))
             top1.update(batch_accu, labels.size(0))
 
             # measure elapsed time
@@ -299,8 +304,6 @@ def main():
         net.load_state_dict(checkpoint['model'])
         net.head = torch.nn.Linear(net.num_features, 10)
 
-        
-   
     net.to(device)
     if args.test:
         print("Mode: Evalulation only.")

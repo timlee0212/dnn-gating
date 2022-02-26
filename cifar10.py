@@ -10,7 +10,7 @@ import torch.optim as optim
 import matplotlib.pyplot as plt
 import utils.utils as util
 from utils.load_dataset import loadCIFAR10
-from utils.create_model import createModel
+from utils.create_model import createModel, replacePGModule
 
 import numpy as np
 import os, time, sys
@@ -122,10 +122,18 @@ def train_model(trainloader, testloader, net, device):
 
     from timm.optim import create_optimizer
     optimizer = create_optimizer(args, net)
+    #optimizer = optim.SGD(net.parameters(), 
+    #                      lr=0.1, 
+    #                      momentum=0.9,
+    #                      weight_decay=1e-4)
 
     from timm.scheduler import create_scheduler
     lr_scheduler, _ = create_scheduler(args, optimizer)
-
+    #lr_scheduler = optim.lr_scheduler.MultiStepLR(
+    #                    optimizer, 
+    #                    milestones=[50,100,150], 
+    #                    gamma=0.1,
+    #                    last_epoch=-1)
     if args.mixup != 0:
         from timm.data import Mixup
         mixup_fn = Mixup(
@@ -136,6 +144,7 @@ def train_model(trainloader, testloader, net, device):
         criterion = SoftTargetCrossEntropy()
     else:
         criterion = torch.nn.CrossEntropyLoss()        
+
 
     correctBest = 0
 
@@ -162,7 +171,6 @@ def train_model(trainloader, testloader, net, device):
         for i, data in enumerate(trainloader):
             # get the inputs; data is a list of [inputs, labels]
             inputs, labels = data[0].to(device), data[1].to(device)
-
             if args.mixup != 0:
                 inputs, labels = mixup_fn(inputs, labels)
             # zero the parameter gradients
@@ -170,7 +178,6 @@ def train_model(trainloader, testloader, net, device):
 
             # forward + backward + optimize
             outputs = net(inputs)
-
             loss = criterion(outputs, labels)
             loss.backward()
             #for p in net.modules():
@@ -290,20 +297,26 @@ def main():
     # load datasets
     trainloader, testloader, classes = loadCIFAR10(args)
 
+    # create model
+    #print("Create {} model.".format(args.arch))
     net = createModel(args)
-
     if args.pretrained:
         classifier_name = net.default_cfg['classifier']
         if args.resume == 'remote':
             net._modules[classifier_name] = torch.nn.Linear(net.num_features, 10) 
+            replacePGModule(net,args)
         else:
+            net._modules[classifier_name] = torch.nn.Linear(net.num_features, 10)  
             if args.resume == 'local':
                 checkpoint = torch.load(os.path.join(save_folder, "{}.pt".format(modelName)), map_location='cpu')
             else:
                 checkpoint = torch.load(save_folder+args.resume, map_location='cpu')
             if net._modules[classifier_name].out_features != 10:
                 net._modules[classifier_name] = torch.nn.Linear(net.num_features, 10) 
+            replacePGModule(net,args)
             net.load_state_dict(checkpoint)
+    
+    print(net)
 
     net.to(device)
     if args.test:

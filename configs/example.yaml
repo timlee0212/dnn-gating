@@ -1,0 +1,62 @@
+#Following the example script of timm library
+Experiment:
+  exp_id:                         #Experiment Name
+  path:                           #Path to save Experiment File, will store in "path/exp_id"
+  checkpoint_hist:                #Number of checkpoints to keep
+  model:
+    name:                         #Name of the model (timm or customized)                  
+    pretrained:       True           
+    num_class:        10
+    pretrain_pt:      None        #If customized Model with pretrain
+  dist:               False         #Start with dist launcher
+  local_rank:         None          #Local rank in dist mode
+  seed:               42
+  gpu_ids:                        #GPUs to use
+    - 0
+
+Trainer:
+  amp:              True          #Enable Automatic Mixed Precision
+  batch_size:       128
+  val_batch_size:   128 
+  epochs:           300
+  opt:    #Optimizer Settings
+    name:           sgd
+    params:        
+      eps:          None
+      betas:        None
+      momentum:     0.9
+      weight_decay: 2e-5
+      clip_grad:    None        #Clip gradient norm (default: None, no clipping)
+      clip_mode:    norm        #Gradient clipping mode. One of ("norm", "value", "agc")
+  sched:  #LR Scheduler Settings
+    name:           step        #Name of the LR Scheduler
+    lr:             0.01        #Initial Learning Rate
+    lr_noise:       None        #Learning rate noise on/off epoch percentages
+    lr_noise_pct:   0.67        #Learning rate noise limit percent (default: 0.67)
+    lr_noise_std:   1.0         #learning rate noise std-dev (default: 1.0)
+    lr_cycle_mul:   1.0         #learning rate cycle len multiplier (default: 1.0)')
+    lr_cycle_decay:
+    lr_cycle_limit:
+    lr_k_decay:
+    lr_warmup:
+    lr_min:
+    decay_epochs:
+    wramup_epochs:
+    cooldown_epochs:
+    patience_epochs:
+    decay_rate:   
+
+Data:
+  name:               #Dataset Name
+  path:               #Dataset Path
+  mean:
+  std:
+  augs:               #All augmentation options
+    
+
+Plugins:
+- 
+  name:
+  params:
+
+

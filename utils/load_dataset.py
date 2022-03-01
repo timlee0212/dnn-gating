@@ -12,6 +12,7 @@ import torchvision.transforms as transforms
 
 def loadCIFAR10(args):
     from timm.data import create_transform
+    from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
     if args.resize > 32:
         transform_train = create_transform(
             input_size = args.resize,
@@ -26,7 +27,9 @@ def loadCIFAR10(args):
         transform_test = transforms.Compose([
             transforms.Resize(256, interpolation=3),
             transforms.CenterCrop(args.resize),
-            transforms.ToTensor()
+            transforms.ToTensor(),
+            transforms.Normalize(IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD)
+
         ])
     else:
         transform_train = transforms.Compose([
@@ -35,7 +38,7 @@ def loadCIFAR10(args):
             transforms.ToTensor()
         ])
         transform_test = transforms.Compose([
-                    transforms.ToTensor()
+            transforms.ToTensor()
         ])
 
     # pin_memory=True makes transfering data from host to GPU faster

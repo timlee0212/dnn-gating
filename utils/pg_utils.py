@@ -1,3 +1,5 @@
+from multiprocessing.sharedctypes import Value
+from re import S
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -254,20 +256,38 @@ class TorchRoundToBits(nn.Module):
         self.epsilon = 1e-7
 
     def forward(self, input):
-        """ extract the sign of each element """
-        sign = torch.sign(input).detach()
-        """ get the mantessa bits """
-        input = torch.abs(input)
-        scaling = torch.max(input).detach() + self.epsilon
-        import math
-        scaling = math.ceil(math.log(scaling, 2))
-        scaling = 2**scaling
-        input = Clamp.apply(input/scaling, 0.0, 1.0)
-        shift = 2**(self.bits-1.0)
-        """ round the mantessa bits to the required precision """
-        outputInt = Round.apply(input * shift)*sign
-        outputScale = scaling/shift
-        return outputInt*outputScale
+        #Extract the information of quantization range, avoid leaving gradients
+        with torch.no_grad():
+            # The range of the full precision weights
+            fp_max = torch.max(input)
+            fp_min = torch.min(input)
+
+            #The range of the quantized weight
+            qmax = 2 ** self.bits - 1
+            qmin = 0
+
+            #Scaling Factor and Bias
+            scale = (fp_max - fp_min) / (qmax - qmin) + self.epsilon
+            bias = qmin - torch.round(fp_min/scale)
+        qout = (Clamp.apply(Round.apply(input/scale + bias), qmin, qmax) - bias ) * scale
+
+        return qout
+
+
+        # """ extract the sign of each element """
+        # sign = torch.sign(input).detach()
+        # """ get the mantessa bits """
+        # input = torch.abs(input)
+        # scaling = torch.max(input).detach() + self.epsilon
+        # import math
+        # scaling = math.ceil(math.log(scaling, 2))
+        # scaling = 2**scaling
+        # input = Clamp.apply(input/scaling, 0.0, 1.0)
+        # shift = 2**(self.bits-1.0)
+        # """ round the mantessa bits to the required precision """
+        # outputInt = Round.apply(input * shift)*sign
+        # outputScale = scaling/shift
+        # return outputInt*outputScale
 
 
 class TorchTruncate(nn.Module):
@@ -412,7 +432,7 @@ class PGConv2d(nn.Module):
 
         self.quantMSB = TorchQuantize(pgabits)
         self.quantIn = TorchQuantize(abits)
-        self.quantOut = TorchQuantize(32)
+        #self.quantOut = TorchQuantize(32)
 
         self.gt = SparseGreaterThan.apply if sparse_bp else GreaterThan.apply
 
@@ -430,7 +450,7 @@ class PGConv2d(nn.Module):
         """
         msbIn = self.quantMSB(input)
         msbOut = self.conv(msbIn)
-        msbOut = self.quantOut(msbOut)
+        #msbOut = self.quantOut(msbOut)
         if self.th == 0.0:
             return msbOut
 
@@ -460,7 +480,7 @@ class PGConv2d(nn.Module):
         # plt.show()
 
     @classmethod
-    def copy_conv(cls, conv, **kwargs):
+    def copy_conv(cls, conv, args):
         """
         Alternative constrtor to directly copy from the current convolutional layer
         """
@@ -472,18 +492,17 @@ class PGConv2d(nn.Module):
                             padding_mode=conv.padding_mode,
                             stride=conv.stride, 
                             padding=conv.padding, 
-                            bias=(not conv.bias is None), 
-                            wbits=kwargs['wbits'], 
-                            abits=kwargs['abits'], 
-                            pgabits=kwargs['pgabits'], 
-                            sparse_bp=kwargs['sparse_bp'], 
-                            threshold=kwargs['th'])
+                            bias=False, 
+                            wbits=args['wbits'], 
+                            abits=args['abits'], 
+                            pgabits=args['pgabits'], 
+                            sparse_bp=args['sparse_bp'], 
+                            threshold=args['th'])
 
         # Replicate weight
-        new_conv.conv.weight.data = conv.weight.data.clone(
-        )
+        new_conv.conv.weight.data.copy_(conv.weight)
         if not new_conv.conv.bias is None:
-            new_conv.conv.bias = conv.bias.data.clone()
-        new_conv.conv.weight_fp = conv.weight.data.clone()
+            raise ValueError("The conv with bias is not supported!")
+        new_conv.conv.weight_fp.copy_( conv.weight)
         return new_conv
 

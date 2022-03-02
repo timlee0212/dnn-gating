@@ -461,8 +461,8 @@ class PGConv2d(nn.Module):
         """ Calculate the mask """
         mask = self.gt(torch.sigmoid(msbOut), self.th)
         """ update report """
-        self.num_out = mask.cpu().numel()
-        self.num_high = mask[mask > 0].cpu().numel()
+        self.num_out = mask.numel()
+        self.num_high = torch.sum(mask).item()
         return msbOut + mask*lsbOut
 
         # print("xxxxxxxxxxxxxxxx")

@@ -426,8 +426,6 @@ class PGAttention(nn.Module):
         attn_msb = attn_msb.softmax(dim=-1)
         mask = self.greaterThan(attn_msb,1e-2)
 
-
-        mask = mask
         #print(torch.max(mask[0][0]),torch.min(mask[0][0]))
         #import matplotlib.pyplot as plt
         #for head in range(self.num_heads):
@@ -436,7 +434,7 @@ class PGAttention(nn.Module):
         #    plt.subplot(2,3,head+1)
         #plt.show()
 
-
+        #print(mask[mask>0].cpu().numel()/mask.cpu().numel())
         attn = (q @ k.transpose(-2, -1)) * self.scale
         attn = attn*mask
         attn = attn.softmax(dim=-1)

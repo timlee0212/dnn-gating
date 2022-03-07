@@ -76,13 +76,15 @@ def loadImageNet(args):
     ])
 
     # pin_memory=True makes transfering data from host to GPU faster
-    trainset = datasets.ImageFolder(args.data_path+"/train", transform=transform_train)
-    trainloader = torch.utils.data.DataLoader(trainset, batch_size=args.batch_size,
-                                              shuffle=True, num_workers=4, pin_memory=True)
+    trainset = datasets.ImageFolder(args.data_path+"/train",transform=transform_train)
+    train_sampler = torch.utils.data.RandomSampler(trainset)
+    trainloader = torch.utils.data.DataLoader(trainset, sampler=train_sampler, batch_size=args.batch_size,
+                                               num_workers=4, pin_memory=True, drop_last=True)
 
     testset = datasets.ImageFolder(args.data_path+"/val", transform=transform_test)
-    testloader = torch.utils.data.DataLoader(testset, batch_size=args.batch_size,
-                                             shuffle=False, num_workers=4, pin_memory=True)
+    test_sampler = torch.utils.data.SequentialSampler(testset)
+    testloader = torch.utils.data.DataLoader(testset, sampler=test_sampler,batch_size=args.batch_size,
+                                             num_workers=4, pin_memory=True, drop_last=False)
 
 
     return trainloader, testloader

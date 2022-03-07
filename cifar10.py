@@ -261,29 +261,6 @@ def test_accu(testloader, net, device):
     return correct
 
 
-#----------------------------
-# Test accuracy per class
-#----------------------------
-
-def per_class_test_accu(testloader, classes, net, device):
-    class_correct = list(0. for i in range(10))
-    class_total = list(0. for i in range(10))
-    net.eval()
-    with torch.no_grad():
-        for data in testloader:
-            images, labels = data[0].to(device), data[1].to(device)
-            outputs = net(images)
-            _, predicted = torch.max(outputs, 1)
-            c = (predicted == labels).squeeze()
-            for i in range(4):
-                label = labels[i]
-                class_correct[label] += c[i].item()
-                class_total[label] += 1
-
-
-    for i in range(10):
-        print('Accuracy of %5s : %.1f %%' % (
-            classes[i], 100 * class_correct[i] / class_total[i]))
 
 
 #----------------------------
@@ -295,7 +272,7 @@ def main():
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     
     # load datasets
-    trainloader, testloader, classes = loadCIFAR10(args)
+    trainloader, testloader = loadCIFAR10(args)
 
     # create model
     #print("Create {} model.".format(args.arch))
@@ -321,10 +298,9 @@ def main():
     net.to(device)
     if args.test:
         print("Mode: Evalulation only.")
-        #util.load_models(net,save_folder,suffix=modelName)
+
         print("Loading Model:",modelName)
         test_accu(testloader, net, device)
-        per_class_test_accu(testloader, classes, net, device)
     else:
         print("Start training.")
         train_model(trainloader, testloader, net, device)

@@ -4,10 +4,12 @@ Experiment:
   path:                           #Path to save Experiment File, will store in "path/exp_id"
   checkpoint_hist:                #Number of checkpoints to keep
   model:
-    name:                         #Name of the model (timm or customized)                  
-    pretrained:       True           
-    num_class:        10
-    pretrain_pt:      None        #If customized Model with pretrain
+    model_name:
+    pretrained:       True
+    checkpoint_path:
+    scriptable:       None
+    exportable:       None
+    no_jit:           None
   dist:               False         #Start with dist launcher
   local_rank:         None          #Local rank in dist mode
   seed:               42

@@ -3,7 +3,7 @@ from tensorboardX import SummaryWriter
 import os
 import torch
 
-class logger:
+class Logger:
     def __init__(self, config):
         self.batch_size = config["trainer"]["batch_size"]
         self.steps_per_epoch = config["trainer"]["steps_per_epoch"]

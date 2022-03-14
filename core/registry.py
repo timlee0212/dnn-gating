@@ -47,7 +47,6 @@ _plugin_registry = Registry("Plugins")
 def registerPlugin(obj):
     _plugin_registry.register(obj)
     _plugin_to_class[obj.pluginName.fget(obj)] = obj.__name__
-    print(obj.__name__)
     
 def findPlugin(name):
     try:

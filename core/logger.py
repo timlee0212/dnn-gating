@@ -5,10 +5,10 @@ import torch
 
 class Logger:
     def __init__(self, config):
-        self.batch_size = config["trainer"]["batch_size"]
-        self.steps_per_epoch = config["trainer"]["steps_per_epoch"]
-        self.input_size = config["data"]["input_size"]
-        self.writer = SummaryWriter(os.path.join(config["experiment"]["path"], "logs"))
+        self.batch_size = config.Trainer.batch_size
+        self.steps_per_epoch = config.Trainer.steps_per_epoch
+        self.input_size = config.Data.input_size
+        self.writer = SummaryWriter(os.path.join(config.Experiment.path, "logs"))
     
     def log_scalar(self, value, name, stage, epoch, steps=0):
         """

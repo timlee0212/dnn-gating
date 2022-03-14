@@ -1,39 +1,41 @@
 #Following the example script of timm library
 Experiment:
-  exp_id:                         #Experiment Name
-  path:                           #Path to save Experiment File, will store in "path/exp_id"
+  exp_id:             test            #Experiment Name
+  path:               ./checkpoint #Path to save Experiment File, will store in "path/exp_id"
   checkpoint_hist:                #Number of checkpoints to keep
-  model:
-    model_name:
-    pretrained:       True
-    checkpoint_path:
-    scriptable:       None
-    exportable:       None
-    no_jit:           None
   dist:               False         #Start with dist launcher
-  local_rank:         None          #Local rank in dist mode
+  local_rank:         null          #Local rank in dist mode
   seed:               42
   gpu_ids:                        #GPUs to use
     - 0
+
+Model:
+  model_name:       resnet18
+  pretrained:       True
+  checkpoint_path:
+  scriptable:       null
+  exportable:       null
+  no_jit:           null
 
 Trainer:
   amp:              True          #Enable Automatic Mixed Precision
   batch_size:       128
   val_batch_size:   128 
   epochs:           300
+  prefetcher:       True
   opt:    #Optimizer Settings
     name:           sgd
     params:        
-      eps:          None
-      betas:        None
+      eps:          null
+      betas:        null
       momentum:     0.9
       weight_decay: 2e-5
-      clip_grad:    None        #Clip gradient norm (default: None, no clipping)
+      clip_grad:    null        #Clip gradient norm (default: null, no clipping)
       clip_mode:    norm        #Gradient clipping mode. One of ("norm", "value", "agc")
   sched:  #LR Scheduler Settings
     name:           step        #Name of the LR Scheduler
     lr:             0.01        #Initial Learning Rate
-    lr_noise:       None        #Learning rate noise on/off epoch percentages
+    lr_noise:       null        #Learning rate noise on/off epoch percentages
     lr_noise_pct:   0.67        #Learning rate noise limit percent (default: 0.67)
     lr_noise_std:   1.0         #learning rate noise std-dev (default: 1.0)
     lr_cycle_mul:   1.0         #learning rate cycle len multiplier (default: 1.0)')
@@ -49,16 +51,58 @@ Trainer:
     decay_rate:   
 
 Data:
-  name:               #Dataset Name
-  path:               #Dataset Path
-  mean:
-  std:
+  name:               imagenet #Dataset Name
+  path:               /root/hostPublic/ImageNet #Dataset Path
+  download:           False
+  num_classes:        1000
+  num_workers:        4
+  pin_mem:            False
+  input_size:         [3, 224, 224]
+  #mean:              #Use default 
+  #std:               #Use default
   augs:               #All augmentation options
+    no_aug:           False
+    scale:            [0.08, 1.0] 
+    ratio:            [0.75, 1.33]
+    hflip:            0.5
+    vflip:            0
+    color_jitter:     0.4
+    autoaug:          null
+    aug_repeats:      0
+    aug_splits:       0
+    loss: 
+      jsd_loss:       False
+      bce_loss:       False
+      bce_target_thresh:  null
+    random_earse:
+      reprob:         0
+      remode:         pixel
+      recount:        1
+      resplit:        False
+    mixup:
+      mixup_alpha:    0
+      cutmix_alpha:   0
+      cutmix_minmax:  null
+      mixup_prob:     1.0
+      mixup_switch_prob:  0.5
+      mixup_mode:     batch
+      mixup_off_epoch: 0
+    smoothing:        0.1
+    train_interpolation:  random
+    drop:             0
+    drop_path:        null
+    drop_block:       null
+
     
 
 Plugins:
 - 
-  name:
-  params:
+  name:         PrecisionGating
+  params:   
+    wbits:      8
+    abits:      4
+    pgabits:    4
+    threshold:  0.9
+    sparse_bp:  False
 
 

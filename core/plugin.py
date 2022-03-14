@@ -95,7 +95,6 @@ def createPlugin(plugin_name, **kwargs):
     """
     Load plugin based on its name. The plugin_name should match its folder
     """
-
     plugin_class = findPlugin(plugin_name)
 
     return plugin_class(**kwargs)

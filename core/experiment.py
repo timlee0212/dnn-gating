@@ -83,7 +83,7 @@ class Experiment:
         """
         Run experiment based on the predefined configs
         """
-        pass
+        self.trainer.trainModel(self.model)
 
     def _init_plugins(self):
         self.plugin_list = []

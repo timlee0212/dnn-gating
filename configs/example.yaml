@@ -6,11 +6,15 @@ Experiment:
   dist:               False         #Start with dist launcher
   local_rank:         null          #Local rank in dist mode
   seed:               42
-  debug:              True          #Enable debug output
+  debug:              False         #Enable debug output
   channel_last:       False
   resume:             True
-  recovery_interval:  1
+  recovery_interval:  100
   log_interval:       16
+  sync_bn:          False
+  split_bn:         False
+  dist_bn:          reduce
+  model_ema:        False
   gpu_ids:                        #GPUs to use
     - 0
 
@@ -21,31 +25,28 @@ Model:
   scriptable:       null
   exportable:       null
   no_jit:           null
-  sync_bn:          False
-  split_bn:         False
-  dist_bn:          reduce
-  model_ema:        False
+
 
 Trainer:
   name:             ImageClassification
   amp:              True          #Enable Automatic Mixed Precision
   batch_size:       128
   val_batch_size:   128 
-  epochs:           300
+  epochs:           30
   prefetcher:       True
   eval_metric:      top1
   opt:    #Optimizer Settings
     name:           sgd
     params:        
+      lr:             0.01        #Initial Learning Rate
       eps:          null
       betas:        null
       momentum:     0.9
-      weight_decay: 2e-5
+      weight_decay: 2.0e-5
       clip_grad:    null        #Clip gradient norm (default: null, no clipping)
       clip_mode:    norm        #Gradient clipping mode. One of ("norm", "value", "agc")
   sched:  #LR Scheduler Settings
     name:           step        #Name of the LR Scheduler
-    lr:             0.01        #Initial Learning Rate
     lr_noise:       null        #Learning rate noise on/off epoch percentages
     lr_noise_pct:   0.67        #Learning rate noise limit percent (default: 0.67)
     lr_noise_std:   1.0         #learning rate noise std-dev (default: 1.0)
@@ -56,7 +57,7 @@ Trainer:
     warmup_lr:
     min_lr:
     decay_epochs:
-    wramup_epochs:
+    warmup_epochs:
     cooldown_epochs:
     patience_epochs:
     decay_rate:   
@@ -67,7 +68,7 @@ Data:
   download:           False
   num_classes:        1000
   num_workers:        4
-  pin_mem:            False
+  pin_mem:            True
   input_size:         [3, 224, 224]
   #mean:              #Use default 
   #std:               #Use default

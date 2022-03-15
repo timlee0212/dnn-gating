@@ -66,8 +66,7 @@ def createTrainLoader(dataset_name, config, data_config):
         num_workers=config.Data.num_workers,
         distributed=config.Experiment.dist,
         collate_fn=collate_fn,
-        pin_memory=config.Data.pin_mem,
-        worker_seeding=config.Experiment.seed,
+        pin_memory=config.Data.pin_mem
     )
 
     loader_train.mixup_fn = mixup_fn
@@ -94,7 +93,7 @@ def createTrainLoader(dataset_name, config, data_config):
 def createValLoader(dataset_name, config, data_config):
 
     dataset_eval = create_dataset(
-        dataset_name, root=config.Data.path, split="validation", is_training=False,
+        dataset_name, root=config.Data.path, split="val", is_training=False,
         download=config.Data.download,
         batch_size=config.Trainer.val_batch_size)
     loader_eval = create_loader(

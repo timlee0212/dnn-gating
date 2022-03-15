@@ -1,4 +1,5 @@
 #Trainer for image classification task
+from distutils.command.config import config
 from core.registry import registerTrainer
 from core.trainer import Trainer
 from timm.utils import AverageMeter, dispatch_clip_grad, reduce_tensor, accuracy, distribute_bn
@@ -12,7 +13,7 @@ import time
 @registerTrainer
 class imgCls(Trainer):
     @property
-    def name(self):
+    def trainerName(self):
         return "ImageClassification"
 
     def __init__(self, config, optimizer, scheduler, logger, saver, train_loss, eval_loss, train_loader = None,
@@ -37,6 +38,7 @@ class imgCls(Trainer):
         self.eval_metric = config.Trainer.eval_metric
 
         self.loss_scaler = torch.cuda.amp.GradScaler() if config.Trainer.amp else None
+        self.loss_scaler.state_dict_key = "amp_scaler"
         saver.amp_scaler = self.loss_scaler
         saver.desceasing = (self.eval_metric == 'loss')
 
@@ -47,17 +49,17 @@ class imgCls(Trainer):
         best_metric = None
         if self.scheduler is not None and self.config.Trainer.start_epoch > 0:
             self.scheduler.step(self.config.Trainer.start_epoch)
-        if self.main_proc:
+        if self.verbose:
             self.cmd_logger.info("Starting from {0} epoch".format(self.config.Trainer.start_epoch))
         for epoch in range(self.config.Trainer.start_epoch, self.config.Trainer.scheduled_epochs):
             if self.config.Experiment.dist and hasattr(self.train_loader.sampler, 'set_epoch'):
                 self.train_loader.sampler.set_epoch(epoch)
             train_metrics = self._train_one_epoch(model, epoch)
 
-            if self.config.Experiment.dist and self.config.Model.dist_bn in ('broadcast', 'reduce'):
+            if self.config.Experiment.dist and self.config.Experiment.dist_bn in ('broadcast', 'reduce'):
                 if self.verbose:
                     self.cmd_logger.info("Distributing BatchNorm running means and vars")
-                distribute_bn(model, torch.distributed.get_world_size(), self.config.Model.dist_bn == 'reduce')
+                distribute_bn(model, torch.distributed.get_world_size(), self.config.Experiment.dist_bn == 'reduce')
 
             eval_metrics = self.evalModel(model)
             if self.scheduler is not None:
@@ -143,7 +145,7 @@ class imgCls(Trainer):
         model.train()
         end = time.time()
         last_idx = len(self.train_loader) - 1
-        num_updates = epoch * len(self.train_loaderloader)
+        num_updates = epoch * len(self.train_loader)
 
         for batch_idx, (input, target) in enumerate(self.train_loader):
             last_batch = batch_idx == last_idx
@@ -152,7 +154,7 @@ class imgCls(Trainer):
                 input, target = input.to(self.device), target.to(self.device)
                 if self.train_loader.mixup_fn is not None:
                     input, target = self.train_loader.mixup_fn(input, target)
-            if self.config.Experiment.channels_last:
+            if self.config.Experiment.channel_last:
                 input = input.contiguous(memory_format=torch.channels_last)
 
             with amp_autocast():
@@ -169,16 +171,21 @@ class imgCls(Trainer):
 
             self.optimizer.zero_grad()
             if self.loss_scaler is not None:
-                self.loss_scaler.scale(loss).backward()
-
+                self.loss_scaler.scale(loss).backward(create_graph=second_order)
             else:
                 loss.backward(create_graph=second_order)
 
-            if self.config.Trainer.opt.clip_grad is not None:
+            if self.config.Trainer.opt.params.clip_grad is not None:
+                if self.loss_scaler is not None:
+                    self.loss_scaler.unscale_(self.optimizer)
                 dispatch_clip_grad(
-                    model_parameters(model, exclude_head='agc' in self.config.Trainer.opt.clip_mode),
-                    value=self.config.Trainer.opt.clip_grad, mode=self.config.Trainer.opt.clip_mode)
-            self.optimizer.step()
+                    model_parameters(model, exclude_head='agc' in self.config.Trainer.opt.params.clip_mode),
+                    value=self.config.Trainer.opt.params.clip_grad, mode=self.config.Trainer.opt.params.clip_mode)
+            if self.loss_scaler is not None:
+                self.loss_scaler.step(self.optimizer)
+                self.loss_scaler.update()
+            else:
+                self.optimizer.step()
 
             torch.cuda.synchronize()
             num_updates += 1
@@ -195,14 +202,14 @@ class imgCls(Trainer):
                     top1_m.update(acc1.item(), output.size(0))
                     top5_m.update(acc5.item(), output.size(0))
 
-                if self.verbose == 0:
+                if self.verbose:
                     self.cmd_logger.info(
                         'Train: {} [{:>4d}/{} ({:>3.0f}%)]  '
                         'Loss: {loss.val:#.4g} ({loss.avg:#.3g})  '
-                        'Acc@1: {top1.val:>7.4f} ({top1.avg:>7.4f})  '
-                        'Acc@5: {top5.val:>7.4f} ({top5.avg:>7.4f})'
-                        'Time: {batch_time.val:.3f}s, {rate:>7.2f}/s  '
-                        '({batch_time.avg:.3f}s, {rate_avg:>7.2f}/s)  '
+                        'Acc@1: {top1.val:>5.2f} ({top1.avg:>5.2f})  '
+                        'Acc@5: {top5.val:>5.2f} ({top5.avg:>5.2f})'
+                        'Time: {batch_time.val:.3f}s, {rate:>5.2f}/s  '
+                        '({batch_time.avg:.3f}s, {rate_avg:>5.2f}/s)  '
                         'LR: {lr:.3e}  '
                         'Data: {data_time.val:.3f} ({data_time.avg:.3f})'.format(
                             epoch,
@@ -212,8 +219,8 @@ class imgCls(Trainer):
                             top1=top1_m,
                             top5=top5_m,
                             batch_time=batch_time_m,
-                            rate=input.size(0) *  torch.distributed.get_world_size()/ batch_time_m.val,
-                            rate_avg=input.size(0) * torch.distributed.get_world_size() / batch_time_m.avg,
+                            rate=input.size(0) *  torch.distributed.get_world_size() if self.config.Experiment.dist else 1.0 / batch_time_m.val,
+                            rate_avg=input.size(0) * torch.distributed.get_world_size() if self.config.Experiment.dist else 1.0/ batch_time_m.avg,
                             lr=lr,
                             data_time=data_time_m))
 

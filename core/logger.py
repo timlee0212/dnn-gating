@@ -5,12 +5,13 @@ import torch
 import logging
 
 class Logger:
-    def __init__(self, config):
+    def __init__(self, config, device='cuda'):
         self.batch_size = config.Trainer.batch_size
         self.steps_per_epoch = config.Trainer.steps_per_epoch
         self.input_size = config.Data.input_size
-        self.writer = SummaryWriter(os.path.join(config.Experiment.path, "logs"))
+        self.writer = SummaryWriter(os.path.join(config.Experiment.path, config.Experiment.exp_id, "logs"))
         self.cmd_logger = logging.getLogger("Logger")
+        self.device = device
     
     def log_scalar(self, value, name, stage, epoch, steps=0):
         """
@@ -25,11 +26,10 @@ class Logger:
         """
         Log the model structure
         """
-        pseudo_input = torch.randn(self.input_size)
-        temp_model = model.clone().to("cpu")
+        pseudo_input = torch.randn(self.input_size).to(self.device)
+        # temp_model = model.clone().to("cpu")
         try:
-            self.writer.add_graph(temp_model, pseudo_input)
-            del temp_model
+            self.writer.add_graph(model, pseudo_input)
         except:
             self.cmd_logger.warning("Some modules of the model may not support JIT thus cannot be logged.")
 

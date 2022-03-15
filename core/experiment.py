@@ -17,25 +17,28 @@ from timm.utils import CheckpointSaver
 class Experiment:
     def __init__(self, config):
         self.config = config
-        if not os.exists(config.Experiment.path):
+        if not os.path.exists(config.Experiment.path):
             os.mkdir(config.Experiment.path)
-        if not os.exists(os.path.join(config.Experiment.path, "config.yaml")):
-            yaml.safe_dump(config)
-        self.checkpoint_path = os.path.join(config.Experiment.path, "ckpt")
+        if not os.path.exists(os.path.join(config.Experiment.path, config.Experiment.exp_id)):
+            os.mkdir(os.path.join(config.Experiment.path, config.Experiment.exp_id))
+        if not os.path.exists(os.path.join(config.Experiment.path, "config.yaml")):
+            yaml.safe_dump(config.config_dict, open(os.path.join(config.Experiment.path, "config.yaml"), 'w'))
+        self.checkpoint_path = os.path.join(config.Experiment.path,  config.Experiment.exp_id, "ckpt")
 
-        if not os.exists(self.checkpoint_path):
+        if not os.path.exists(self.checkpoint_path):
             os.mkdir(self.checkpoint_path)
         self.config.Experiment.resume = False
 
         # Setup output logger
         root_logger = logging.getLogger()
         log_level = logging.DEBUG if config.Experiment.debug else logging.INFO
-        fh = logging.FileHandler(os.path.join(config.Experiment.path), datetime.now().strftime("%y%m%d-%H-%M")
-                                 + config.Experiment.exp_id + ".log")
+        logging.basicConfig(level=log_level)
+        fh = logging.FileHandler(os.path.join(config.Experiment.path, config.Experiment.exp_id, datetime.datetime.now().strftime("%y%m%d-%H-%M")
+                                 + config.Experiment.exp_id + ".log"))
         fh.setLevel(log_level)
-        ch = logging.StreamHandler()
-        ch.setLevel(log_level)
-        root_logger.addHandler(ch)
+        # ch = logging.StreamHandler()
+        # ch.setLevel(log_level)
+        # root_logger.addHandler(ch)
         root_logger.addHandler(fh)
 
         self.cmd_logger = logging.getLogger("Experiment")
@@ -53,14 +56,14 @@ class Experiment:
         else:
             assert (self.config.Experiment.gpu_ids is None) or len(
                 self.config.Experiment.gpu_ids) == 1, "Cannot support multi-GPU in single process mode!"
-            self.device = "cpu" if self.config.Experiment.gpu_ids is None else torch.device("cuda")
+            self.device = "cpu" if self.config.Experiment.gpu_ids is None else "cuda"
 
         # Initilize Model
         self._init_model()
 
         # Initilize Dataset
         self._init_data()
-        self.logger = logger.Logger(config)
+        self.logger = logger.Logger(config, self.device)
         self.logger.log_model(self.model)
 
         # Initilize Trainer
@@ -119,6 +122,7 @@ class Experiment:
     def _init_data(self):
         data_config = resolve_data_config(self.config.Data.__dict__, model=self.model,
                                           default_cfg=self.config.Data.__dict__, verbose=self.main_proc)
+        self.cmd_logger.debug(data_config)
         self.train_loader, self.train_loss = dataset.createTrainLoader(self.config.Data.name, self.config, data_config)
         self.val_loader, self.val_loss = dataset.createValLoader(self.config.Data.name, self.config, data_config)
 
@@ -129,13 +133,30 @@ class Experiment:
         self.config.Trainer.steps_per_epoch = len(self.train_loader)
 
     def _init_trainer(self):
+        def optimizer_kwargs(opt_cfg):
+            """ cfg/argparse to kwargs helper
+            Convert optimizer args in argparse args or cfg like object to keyword args for updated create fn.
+            """
+            kwargs = dict(
+                lr=opt_cfg.lr,
+                weight_decay=opt_cfg.weight_decay,
+                momentum=opt_cfg.momentum)
+            if getattr(opt_cfg, 'eps', None) is not None:
+                kwargs['eps'] = opt_cfg.eps
+            if getattr(opt_cfg, 'betas', None) is not None:
+                kwargs['betas'] = opt_cfg.betas
+            if getattr(opt_cfg, 'opt_args', None) is not None:
+                kwargs.update(opt_cfg.opt_args)
+            return kwargs
+
         #TODO: Separate vision and possible language task
-        self.optimizer = create_optimizer_v2(self.model, opt=self.config.Trainer.opt.name, **self.config.Trainer.opt.params.__dict__)
+        self.optimizer = create_optimizer_v2(self.model, opt=self.config.Trainer.opt.name, **optimizer_kwargs(self.config.Trainer.opt.params))
         #Try to be compatible with timm API
         #Urgh, I hate this dirty interface
         sched_cfg = self.config.Trainer.sched
         sched_cfg.sched = sched_cfg.name
         sched_cfg.epochs = self.config.Trainer.epochs
+        sched_cfg.lr = self.config.Trainer.opt.params.lr
 
         self.scheduler, self.config.Trainer.scheduled_epochs = create_scheduler(sched_cfg, self.optimizer)
         if self.main_proc:
@@ -145,12 +166,12 @@ class Experiment:
         #Only the main process save checkpoints
         self.saver = None
         if self.main_proc:
-            self.saver = CheckpointSaver(model=self.model, optimizer=self.optimizer, args=self.config.__dict__,
-                                     checkpoint_dir=self.config.Experiment.path)
+            self.saver = CheckpointSaver(model=self.model, optimizer=self.optimizer, args=None,
+                                     checkpoint_dir=self.checkpoint_path, recovery_dir=self.checkpoint_path)
 
         self.trainer = trainer.createTrainer(self.config.Trainer.name, config = self.config, optimizer = self.optimizer,
                                              scheduler = self.scheduler, logger = self.logger, saver = self.saver,
-                                             verbose=self.main_proc, device=self.device, train_loss = self.train_loss, eval_loss = self.eval_loss)
+                                             verbose=self.main_proc, device=self.device, train_loss = self.train_loss, eval_loss = self.val_loss, train_loader=self.train_loader, test_loader=self.val_loader)
 
 
     def _set_seed(self):
@@ -175,13 +196,13 @@ class Experiment:
                              ' total {1}}.'.format(self.local_rank, torch.distributed.get_world_size()))
 
         # Deal with sync BN in the distributed setting
-        if self.config.Model.sync_bn:
-            assert not self.config.Model.split_bn
+        if self.config.Experiment.sync_bn:
+            assert not self.config.Experiment.split_bn
             self.model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(self.model)
 
             if self.main_proc:
                 self.cmd_logger.warning("Converted model to use Synchronized BatchNorm. WARNING: You may have issues if using \
                                         zero initialized BN layers (enabled by default for ResNets) while sync-bn enabled.")
-        if self.config.Model.split_bn:
+        if self.config.Experiment.split_bn:
             assert self.config.Data.augs.aug_splits > 1 or self.config.Data.augs.random_earse.resplit
-            self.model = convert_splitbn_model(model, max(self.config.Model.split_bn, 2))
+            self.model = convert_splitbn_model(model, max(self.config.Experiment.split_bn, 2))

@@ -18,13 +18,16 @@ class Experiment:
         self._set_seed()
         if config.Experiment.dist:
             self._init_dist()
+        else:
+            assert (self.config.Experiment.gpu_ids is None) or len(self.config.Experiment.gpu_ids)==1, "Cannot support multi-GPU in single process mode!"
+            self.device = "cpu" if self.config.Experiment.gpu_ids is None else torch.device("cuda")
 
         self._init_model()
+        #Initilize Dataset
         self._init_data()
 
-        #Initilize Dataset
-
         #Initilize Trainer
+
 
     @classmethod
     def from_folder(cls, folder, new_path=None):
@@ -61,6 +64,10 @@ class Experiment:
             pass
         for plg in self.plugin_list:
             plg.modelManipHook(model)
+
+        self.model.to(self.device)
+        if self.config.Experiment.dist:
+            self.model = torch.nn.parallel.distributed.DistributedDataParallel(self.model, device_ids=self.local_rank)
 
     def _init_data(self):
         data_config = resolve_data_config(self.config.Data.__dict__, model=self.model, default_cfg=self.config.Data.__dict__ , verbose=self.main_proc)

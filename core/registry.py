@@ -54,3 +54,20 @@ def findPlugin(name):
     except KeyError:
         plugin = _plugin_registry.get(_plugin_to_class[name])
     return plugin
+
+
+_trainer_to_class = {}
+_trainer_registry = Registry("Trianers")
+
+
+def registerTrainer(obj):
+    _trainer_registry.register(obj)
+    _trainer_to_class[obj.trainerName.fget(obj)] = obj.__name__
+
+
+def findTrainer(name):
+    try:
+        trainer = _trainer_registry.get(name)
+    except KeyError:
+        trainer = _trainer_registry.get(_trainer_to_class[name])
+    return trainer

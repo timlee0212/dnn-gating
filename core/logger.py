@@ -2,6 +2,7 @@
 from tensorboardX import SummaryWriter
 import os
 import torch
+import logging
 
 class Logger:
     def __init__(self, config):
@@ -9,6 +10,7 @@ class Logger:
         self.steps_per_epoch = config.Trainer.steps_per_epoch
         self.input_size = config.Data.input_size
         self.writer = SummaryWriter(os.path.join(config.Experiment.path, "logs"))
+        self.cmd_logger = logging.getLogger("Logger")
     
     def log_scalar(self, value, name, stage, epoch, steps=0):
         """
@@ -29,7 +31,7 @@ class Logger:
             self.writer.add_graph(temp_model, pseudo_input)
             del temp_model
         except:
-            print("Warning: Some modules of the model may not support JIT thus cannot be logged.")
+            self.cmd_logger.warning("Some modules of the model may not support JIT thus cannot be logged.")
 
     def __del__(self):
         """

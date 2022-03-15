@@ -1,4 +1,6 @@
 from timm.data import create_dataset, create_loader, FastCollateMixup, Mixup, AugMixDataset
+from timm.loss import JsdCrossEntropy, BinaryCrossEntropy, SoftTargetCrossEntropy, LabelSmoothingCrossEntropy
+import torch.nn as nn
 
 #A wrapper of timm's implementation
 def createTrainLoader(dataset_name, config, data_config):
@@ -67,7 +69,27 @@ def createTrainLoader(dataset_name, config, data_config):
         pin_memory=config.Data.pin_mem,
         worker_seeding=config.Experiment.seed,
     )
-    return loader_train
+
+    loader_train.mixup_fn = mixup_fn
+
+    if augs_config.loss.jsd_loss:
+        assert num_aug_splits > 1  # JSD only valid with aug splits set
+        train_loss_fn = JsdCrossEntropy(num_splits=num_aug_splits, smoothing=augs_config.smoothing)
+    elif mixup_active:
+        # smoothing is handled with mixup target transform which outputs sparse, soft targets
+        if augs_config.loss.bce_loss:
+            train_loss_fn = BinaryCrossEntropy(target_threshold=augs_config.loss.bce_target_thresh)
+        else:
+            train_loss_fn = SoftTargetCrossEntropy()
+    elif augs_config.smoothing:
+        if augs_config.loss.bce_loss:
+            train_loss_fn = BinaryCrossEntropy(smoothing=augs_config.smoothing, target_threshold=augs_config.loss.bce_target_thresh)
+        else:
+            train_loss_fn = LabelSmoothingCrossEntropy(smoothing=augs_config.smoothing)
+    else:
+        train_loss_fn = nn.CrossEntropyLoss()
+
+    return loader_train, train_loss_fn
 
 def createValLoader(dataset_name, config, data_config):
 
@@ -90,5 +112,7 @@ def createValLoader(dataset_name, config, data_config):
         pin_memory=config.Data.pin_mem,
     )
 
-    return loader_eval
+    eval_loss_fn = nn.CrossEntropyLoss()
+
+    return loader_eval, eval_loss_fn
 

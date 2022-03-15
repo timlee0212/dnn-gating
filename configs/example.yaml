@@ -2,27 +2,38 @@
 Experiment:
   exp_id:             test            #Experiment Name
   path:               ./checkpoint #Path to save Experiment File, will store in "path/exp_id"
-  checkpoint_hist:                #Number of checkpoints to keep
+  checkpoint_hist:    10            #Number of checkpoints to keep
   dist:               False         #Start with dist launcher
   local_rank:         null          #Local rank in dist mode
   seed:               42
+  debug:              True          #Enable debug output
+  channel_last:       False
+  resume:             True
+  recovery_interval:  1
+  log_interval:       16
   gpu_ids:                        #GPUs to use
     - 0
 
 Model:
   model_name:       resnet18
   pretrained:       True
-  checkpoint_path:
+  checkpoint_path:  null              #Custom Checkpoint Path
   scriptable:       null
   exportable:       null
   no_jit:           null
+  sync_bn:          False
+  split_bn:         False
+  dist_bn:          reduce
+  model_ema:        False
 
 Trainer:
+  name:             ImageClassification
   amp:              True          #Enable Automatic Mixed Precision
   batch_size:       128
   val_batch_size:   128 
   epochs:           300
   prefetcher:       True
+  eval_metric:      top1
   opt:    #Optimizer Settings
     name:           sgd
     params:        
@@ -42,8 +53,8 @@ Trainer:
     lr_cycle_decay:
     lr_cycle_limit:
     lr_k_decay:
-    lr_warmup:
-    lr_min:
+    warmup_lr:
+    min_lr:
     decay_epochs:
     wramup_epochs:
     cooldown_epochs:

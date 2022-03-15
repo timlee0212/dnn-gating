@@ -10,7 +10,7 @@ import torch.nn as nn
 import torch.optim as optim
 import matplotlib.pyplot as plt
 import utils.utils as util
-from trainer.cifar10 import *
+from trainers.cifar10 import *
 
 import numpy as np
 import os, time, sys

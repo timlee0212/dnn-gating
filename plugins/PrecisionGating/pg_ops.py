@@ -139,13 +139,13 @@ class QLinear(nn.Linear):
 
 class PGAttention(nn.Module):
     def __init__(self, dim, num_heads=8, qkv_bias=False, attn_drop=0., proj_drop=0., wbits=8, abits=8, pgabits=4,
-             sparse_bp=False, threshold=0.99):
+             sparse_bp=False, th=0.99):
         super().__init__()
         self.num_heads = num_heads
         head_dim = dim // num_heads
         self.scale = head_dim ** -0.5
 
-        self.threshold = threshold
+        self.threshold = th
         self.gt = SparseGreaterThan if sparse_bp else GreaterThan
 
         self.qkv = QLinear(dim, dim * 3, bias=qkv_bias, wbits=wbits, abits=abits)

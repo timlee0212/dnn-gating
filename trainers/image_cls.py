@@ -1,5 +1,7 @@
 #Trainer for image classification task
 from distutils.command.config import config
+
+import core.plugin
 from core.registry import registerTrainer
 from core.trainer import Trainer
 from timm.utils import AverageMeter, dispatch_clip_grad, reduce_tensor, accuracy, distribute_bn
@@ -32,7 +34,7 @@ class imgCls(Trainer):
         self.train_loss = train_loss
         self.eval_loss = eval_loss
 
-        self.plugins = plugins
+        self.plugins : list[core.plugin.Plugin] = plugins
 
         self.cmd_logger = logging.getLogger("ImageClsTrainer")
         self.eval_metric = config.Trainer.eval_metric
@@ -52,6 +54,8 @@ class imgCls(Trainer):
         if self.verbose:
             self.cmd_logger.info("Starting from {0} epoch".format(self.config.Trainer.start_epoch))
         for epoch in range(self.config.Trainer.start_epoch, self.config.Trainer.scheduled_epochs):
+            for plg in self.plugins:
+                plg.epochHeadHook(model, epoch)
             if self.config.Experiment.dist and hasattr(self.train_loader.sampler, 'set_epoch'):
                 self.train_loader.sampler.set_epoch(epoch)
             train_metrics = self._train_one_epoch(model, epoch)
@@ -113,6 +117,9 @@ class imgCls(Trainer):
 
                 batch_time_m.update(time.time() - end)
                 end = time.time()
+
+                for plg in self.plugins:
+                    plg.evalIterHook(model, batch_idx, logger=self.logger)
                 if self.verbose and (last_batch or batch_idx % self.config.Experiment.log_interval == 0):
                     log_name = 'Test'
                     self.cmd_logger.info(
@@ -124,6 +131,8 @@ class imgCls(Trainer):
                             log_name, batch_idx, last_idx, batch_time=batch_time_m,
                             loss=losses_m, top1=top1_m, top5=top5_m))
 
+        for plg in self.plugins:
+            plg.evalTailHook(model, logger=self.logger)
         metrics = OrderedDict([('loss', losses_m.avg), ('top1', top1_m.avg), ('top5', top5_m.avg)])
 
         return metrics

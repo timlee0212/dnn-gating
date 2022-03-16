@@ -1,7 +1,8 @@
 from abc import ABCMeta, abstractmethod
 from core.registry import findPlugin
+import logging
 
-# Base calss of the plugins
+# Base class of the plugins
 # Defines all necessary members for a new plugin
 
 class Plugin(metaclass=ABCMeta):
@@ -78,7 +79,7 @@ class Plugin(metaclass=ABCMeta):
         """
         pass
 
-    def evalTailHook(self, model, iter_id, logger=None):
+    def evalTailHook(self, model, logger=None):
         """
         The hook to process log information at the end of each iteration of the evaluation.
         """

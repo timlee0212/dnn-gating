@@ -105,8 +105,6 @@ Data:
     drop_path:        null
     drop_block:       null
 
-    
-
 Plugins:
 - 
   name:         PrecisionGating

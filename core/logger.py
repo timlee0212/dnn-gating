@@ -1,5 +1,5 @@
 
-from torch.utils.tensorboard import SummaryWriter
+from torch.utils.tensorboard.writer import SummaryWriter
 import os
 import torch
 import logging

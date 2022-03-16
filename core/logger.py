@@ -9,7 +9,7 @@ class Logger:
         self.batch_size = config.Trainer.batch_size
         self.steps_per_epoch = config.Trainer.steps_per_epoch
         self.input_size = config.Data.input_size
-        self.writer = SummaryWriter(os.path.join(config.Experiment.path, config.Experiment.exp_id, "logs", flush_secs=30))
+        self.writer = SummaryWriter(os.path.join(config.Experiment.path, config.Experiment.exp_id, "logs"), flush_secs=30)
         self.cmd_logger = logging.getLogger("Logger")
     
     def log_scalar(self, value, name, stage, epoch, steps=0):

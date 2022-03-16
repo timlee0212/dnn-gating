@@ -65,12 +65,14 @@ class imgCls(Trainer):
                     self.cmd_logger.info("Distributing BatchNorm running means and vars")
                 distribute_bn(model, torch.distributed.get_world_size(), self.config.Experiment.dist_bn == 'reduce')
 
-            eval_metrics = self.evalModel(model)
+            eval_metrics = self.evalModel(model, epoch=epoch)
             if self.scheduler is not None:
                 self.scheduler.step(epoch+1, eval_metrics[self.eval_metric])
             if self.saver is not None:
                 save_metric = eval_metrics[self.eval_metric]
                 best_metric, best_epoch = self.saver.save_checkpoint(epoch, metric=save_metric)
+            for plg in self.plugins:
+                plg.epochTailHook(model, epoch)
         if best_metric is not None:
             self.cmd_logger.info('*** Best metric: {0} (epoch {1})'.format(best_metric, best_epoch))
 
@@ -132,7 +134,12 @@ class imgCls(Trainer):
                             loss=losses_m, top1=top1_m, top5=top5_m))
 
         for plg in self.plugins:
-            plg.evalTailHook(model, logger=self.logger)
+            plg.evalTailHook(model, logger=self.logger, epoch_id=None if 'epoch' not in kwargs.keys() else kwargs['epoch'])
+
+        if self.logger is not None and 'epoch' in kwargs.keys() and self.verbose:
+            self.logger.log_scalar(losses_m.avg, "loss", "Test", kwargs['epoch'])
+            self.logger.log_scalar(top1_m.avg, "Top-1 Acc", "Test", kwargs['epoch'])
+            self.logger.log_scalar(top5_m.avg, "Top-5 Acc", "Test", kwargs['epoch'])
         metrics = OrderedDict([('loss', losses_m.avg), ('top1', top1_m.avg), ('top5', top5_m.avg)])
 
         return metrics
@@ -166,6 +173,9 @@ class imgCls(Trainer):
             if self.config.Experiment.channel_last:
                 input = input.contiguous(memory_format=torch.channels_last)
 
+            for plg in self.plugins:
+                plg.preForwardHook(model, input, target, batch_idx)
+
             with amp_autocast():
                 output = model(input)
                 loss = self.train_loss(output, target)
@@ -177,6 +187,8 @@ class imgCls(Trainer):
                 top1_m.update(acc1.item(), output.size(0))
                 top5_m.update(acc5.item(), output.size(0))
 
+            for plg in self.plugins:
+                plg.preBackwardHook(model,input, target, loss, epoch)
 
             self.optimizer.zero_grad()
             if self.loss_scaler is not None:
@@ -184,12 +196,16 @@ class imgCls(Trainer):
             else:
                 loss.backward(create_graph=second_order)
 
+            for plg in self.plugins:
+                plg.preUpdateHook(model, input, target, loss, epoch)
+
             if self.config.Trainer.opt.params.clip_grad is not None:
                 if self.loss_scaler is not None:
                     self.loss_scaler.unscale_(self.optimizer)
                 dispatch_clip_grad(
                     model_parameters(model, exclude_head='agc' in self.config.Trainer.opt.params.clip_mode),
                     value=self.config.Trainer.opt.params.clip_grad, mode=self.config.Trainer.opt.params.clip_mode)
+
             if self.loss_scaler is not None:
                 self.loss_scaler.step(self.optimizer)
                 self.loss_scaler.update()
@@ -233,12 +249,19 @@ class imgCls(Trainer):
                             lr=lr,
                             data_time=data_time_m))
 
+                    if self.logger is not None:
+                        self.logger.log_scalar(losses_m.avg, "loss", "Train", epoch, batch_idx)
+                        self.logger.log_scalar(top1_m.avg, "Top-1 Acc", "Train", epoch, batch_idx)
+                        self.logger.log_scalar(top5_m.avg, "Top-5 Acc", "Train", epoch, batch_idx)
             if self.saver is not None and  self.config.Experiment.recovery_interval and (
                     last_batch or (batch_idx + 1) % self.config.Experiment.recovery_interval == 0):
                 self.saver.save_recovery(epoch, batch_idx=batch_idx)
 
             if self.scheduler is not None:
                 self.scheduler.step_update(num_updates=num_updates, metric=losses_m.avg)
+
+            for plg in self.plugins:
+                plg.iterTailHook(model, input, target, self.logger, batch_idx)
 
             end = time.time()
             # end for

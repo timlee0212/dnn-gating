@@ -19,7 +19,7 @@ class precisionGating(Plugin):
         self.sparse_bp = sparse_bp
         self.threshold = threshold
 
-        self.cmd_logger = logging.getLogger(__name__)
+        self.cmd_logger = logging.getLogger("PG")
 
         self.cnt_out = {}
         self.cnt_high = {}
@@ -73,7 +73,11 @@ class precisionGating(Plugin):
                 self.cnt_out[n] += m.cnt_out
                 self.cnt_high[n] += m.cnt_high
 
-    def evalTailHook(self, model, logger=None):
+    def evalTailHook(self, model,  epoch_id=None, logger=None):
         self.sparsity = 100 - sum(self.cnt_high.values()) * \
             1.0/sum(self.cnt_out.values())
-        print('Sparsity of the update phase: {0.2f}'.format(self.sparsity))
+        self.cmd_logger.info('Sparsity of the update phase: {0.2f}'.format(self.sparsity))
+
+        #If it is during training
+        if epoch_id is not None and logger is not None:
+            logger.log_scalar(self.sparsity, "PG Sparsity", "Test", epoch_id)

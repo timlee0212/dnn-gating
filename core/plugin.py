@@ -79,7 +79,7 @@ class Plugin(metaclass=ABCMeta):
         """
         pass
 
-    def evalTailHook(self, model, logger=None):
+    def evalTailHook(self, model, epoch_id=None, logger=None):
         """
         The hook to process log information at the end of each iteration of the evaluation.
         """

@@ -41,7 +41,7 @@ def replacePGModule(model, **kwargs):
     for name,subModule in model._modules.items():
         #print('module',name,'is a ',subModule,"has",len(subModule._modules),'submodules')
         if(len(subModule._modules)!=0):
-            replacePGModule(subModule)
+            replacePGModule(subModule, **kwargs)
         if isinstance(subModule,Attention):
             #print(model._modules[name])
             attn = model._modules[name]
@@ -56,7 +56,7 @@ def replacePGModule(model, **kwargs):
         elif isinstance(subModule,Mlp):
             #print(model._modules[name])
             mlp = model._modules[name]
-            fc1 = QLinear(mlp.fc1.in_features, mlp.fc1.out_features,mlp.fc1.bias is not None, kwargs['wbits'], kwargs['abits'])
+            fc1 = QLinear(mlp.fc1.in_features, mlp.fc1.out_features,mlp.fc1.bias is not None, wbits=kwargs['wbits'], abits=kwargs['abits'])
             fc1.weight.data.copy_(mlp.fc1.weight)
             fc1.weight_fp.data.copy_(mlp.fc1.weight)
             fc1.bias.data.copy_(mlp.fc1.bias)

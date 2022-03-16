@@ -30,6 +30,8 @@ Trainer:
   sched:  #LR Scheduler Settings
     name:           cosine        #Name of the LR Scheduler
     warmup_epochs:  5
+    warmup_lr:      0.0001   
+    min_lr:         1.0e-6
 
 Data:
   name:               imagenet                  #Dataset Name

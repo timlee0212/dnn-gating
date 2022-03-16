@@ -167,7 +167,7 @@ class PGAttention(nn.Module):
         attn_msb = (q_msb @ k_msb.transpose(-2, -1)) * self.scale
         # attn_msb = self.quantize_noise(attn_msb)
         attn_msb = attn_msb.softmax(dim=-1)
-        mask = self.gt(attn_msb, self.threshold)
+        mask = self.gt.apply(attn_msb, self.threshold)
 
         attn = (q @ k.transpose(-2, -1)) * self.scale
         attn = attn * mask

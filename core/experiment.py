@@ -198,8 +198,11 @@ class Experiment:
         self.main_proc = (self.local_rank == 0)
 
         self.device = "cpu" if self.config.Experiment.gpu_ids is None \
-            else torch.device("cuda", self.local_rank)
+            else "cuda"
         torch.distributed.init_process_group(backend='nccl', init_method='env://')
+
+        #Set visible devices for this process
+        torch.cuda.set_device(os.environ["LOCAL_RANK"])
 
         self.cmd_logger.info('Training in distributed mode with multiple processes, 1 GPU per process. Process {0},'
                              ' total {1}.'.format(self.local_rank, torch.distributed.get_world_size()))

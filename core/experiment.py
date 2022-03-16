@@ -77,7 +77,7 @@ class Experiment:
                                              loss_scaler=self.trainer.loss_scaler, log_info=self.main_proc)
 
     @classmethod
-    def from_folder(cls, folder, new_path=None, copy_checkpoint=False):
+    def from_folder(cls, folder, new_path=None, copy_checkpoint=False, copy_only=False):
         """
         Resume an experiment from a predefined folder
         """
@@ -86,7 +86,8 @@ class Experiment:
             logger.getLogger().info("Copying File to the new experiment folder")
             shutil.copytree(folder, new_path)
             config.Experiment.path = new_path
-        return cls(config)
+            yaml.dump(config, open(os.path.join(new_path, "config.yaml"), 'w'))
+        return None if copy_only else cls(config)
 
 
     def run(self):

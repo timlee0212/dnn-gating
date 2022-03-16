@@ -1,4 +1,3 @@
-from models import *
 from timm.models import create_model
 
 # A wrapper for the timm model create function

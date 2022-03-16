@@ -24,6 +24,7 @@ Model:
   scriptable:       null
   exportable:       null
   no_jit:           null
+  #Additional parameters for model creation
 
 
 Trainer:

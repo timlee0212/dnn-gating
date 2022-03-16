@@ -1,0 +1,116 @@
+Data:
+  augs:
+    aug_repeats: 0
+    aug_splits: 0
+    autoaug: original
+    color_jitter: 0.4
+    drop: 0
+    drop_block: null
+    drop_path: null
+    hflip: 0.5
+    loss:
+      bce_loss: false
+      bce_target_thresh: null
+      jsd_loss: false
+    mixup:
+      cutmix_alpha: 0
+      cutmix_minmax: null
+      mixup_alpha: 0
+      mixup_mode: batch
+      mixup_off_epoch: 0
+      mixup_prob: 1.0
+      mixup_switch_prob: 0.5
+    no_aug: false
+    random_earse:
+      recount: 1
+      remode: pixel
+      reprob: 0
+      resplit: false
+    ratio:
+    - 0.75
+    - 1.33
+    scale:
+    - 0.08
+    - 1.0
+    smoothing: 0.1
+    train_interpolation: random
+    vflip: 0
+  download: false
+  input_size:
+  - 3
+  - 224
+  - 224
+  name: imagenet
+  num_classes: 1000
+  num_workers: 4
+  path: /root/hostPublic/ImageNet
+  pin_mem: true
+Experiment:
+  channel_last: false
+  checkpoint_hist: 10
+  debug: false
+  dist: true
+  dist_bn: reduce
+  exp_id: deit_tiny_8-4-4-0.7
+  gpu_ids:
+  - 2
+  - 3
+  log_interval: 16
+  model_ema: false
+  path: ./checkpoint
+  recovery_interval: 100
+  resume: true
+  seed: 42
+  split_bn: false
+  sync_bn: false
+Model:
+  checkpoint_path: null
+  exportable: null
+  model_name: deit_tiny_patch16_224
+  no_jit: null
+  pretrained: true
+  scriptable: null
+Plugins:
+- name: PrecisionGating
+  params:
+    abits: 8
+    pgabits: 4
+    skip_layers:
+    - 0
+    sparse_bp: false
+    threshold: 0.01
+    wbits: 8
+Trainer:
+  amp: true
+  batch_size: 512
+  epochs: 50
+  eval_metric: top1
+  name: ImageClassification
+  opt:
+    name: adamw
+    params:
+      betas: null
+      clip_grad: null
+      clip_mode: norm
+      eps: null
+      lr: 0.0005
+      momentum: 0.9
+      weight_decay: 2.0e-05
+  prefetcher: true
+  sched:
+    cooldown_epochs: 10
+    decay_epochs: 100
+    decay_rate: 0.1
+    lr_cycle_decay: 0.5
+    lr_cycle_limit: 1
+    lr_cycle_mul: 1.0
+    lr_k_decay: 1.0
+    lr_noise: null
+    lr_noise_pct: 0.67
+    lr_noise_std: 1.0
+    min_lr: 1.0e-06
+    name: cosine
+    patience_epochs: 10
+    warmup_epochs: 5
+    warmup_lr: 0.0001
+  val_batch_size: 128

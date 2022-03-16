@@ -12,12 +12,13 @@ class precisionGating(Plugin):
     def pluginName(self):
         return "PrecisionGating"
 
-    def __init__(self, wbits, abits, pgabits, threshold, sparse_bp=False):
+    def __init__(self, wbits, abits, pgabits, threshold, sparse_bp=False, skip_layers=None):
         self.wbits = wbits
         self.abits = abits
         self.pgabits = pgabits
         self.sparse_bp = sparse_bp
         self.threshold = threshold
+        self.skip_layers = skip_layers
 
         self.cmd_logger = logging.getLogger("PG")
 
@@ -40,7 +41,7 @@ class precisionGating(Plugin):
     # We use model creation hook here for loading the checkpoint after creating the model
     def modelCreationHook(self, model):
         replaceConv(model, wbits=self.wbits, abits=self.abits, pgabits=self.pgabits,
-                    th=self.threshold, sparse_bp=self.sparse_bp)
+                    th=self.threshold, sparse_bp=self.sparse_bp, skip_layers=self.skip_layers)
         replacePGModule(model, wbits=self.wbits, abits=self.abits, pgabits=self.pgabits,
                     th=self.threshold, sparse_bp=self.sparse_bp)
 

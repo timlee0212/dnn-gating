@@ -17,7 +17,7 @@ def replaceConv(model, **kwargs):
             conv_layers.append(n)
 
     for (layer_id, layer_name) in enumerate(conv_layers):
-        if 'skip_layers' in kwargs.keys() and layer_id in kwargs['skip_layers']:
+        if kwargs['skip_layers'] is not None and layer_id in kwargs['skip_layers']:
             print("Skipping: ", layer_name)
             continue
         # Get the strip path of each conv layer

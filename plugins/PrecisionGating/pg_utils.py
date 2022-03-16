@@ -2,7 +2,7 @@ from .pg_ops import *
 from timm.models.vision_transformer import Attention
 from timm.models.layers import Mlp
 
-def replaceConv(model, skip_layers=None, **kwargs):
+def replaceConv(model, **kwargs):
     """
     Args:
         model: model to be replaced
@@ -17,7 +17,7 @@ def replaceConv(model, skip_layers=None, **kwargs):
             conv_layers.append(n)
 
     for (layer_id, layer_name) in enumerate(conv_layers):
-        if not skip_layers is None and layer_id in skip_layers:
+        if 'skip_layers' in kwargs.keys() and layer_id in kwargs['skip_layers']:
             print("Skipping: ", layer_name)
             continue
         # Get the strip path of each conv layer
@@ -37,7 +37,7 @@ def replaceConv(model, skip_layers=None, **kwargs):
                 parent = n_parent
     return model
 
-def replacePGModule(model):
+def replacePGModule(model, **kwargs):
     for name,subModule in model._modules.items():
         #print('module',name,'is a ',subModule,"has",len(subModule._modules),'submodules')
         if(len(subModule._modules)!=0):
@@ -45,7 +45,7 @@ def replacePGModule(model):
         if isinstance(subModule,Attention):
             #print(model._modules[name])
             attn = model._modules[name]
-            pgattn = PGAttention(attn.qkv.in_features, attn.num_heads, attn.qkv.bias is not None)
+            pgattn = PGAttention(attn.qkv.in_features, attn.num_heads, attn.qkv.bias is not None, **kwargs)
             pgattn.qkv.weight.data.copy_(attn.qkv.weight)
             pgattn.qkv.weight_fp.data.copy_(attn.qkv.weight)
             pgattn.qkv.bias.data.copy_(attn.qkv.bias)
@@ -56,12 +56,12 @@ def replacePGModule(model):
         elif isinstance(subModule,Mlp):
             #print(model._modules[name])
             mlp = model._modules[name]
-            fc1 = QLinear(mlp.fc1.in_features, mlp.fc1.out_features,mlp.fc1.bias is not None)
+            fc1 = QLinear(mlp.fc1.in_features, mlp.fc1.out_features,mlp.fc1.bias is not None, kwargs['wbits'], kwargs['abits'])
             fc1.weight.data.copy_(mlp.fc1.weight)
             fc1.weight_fp.data.copy_(mlp.fc1.weight)
             fc1.bias.data.copy_(mlp.fc1.bias)
             mlp.fc1 = fc1
-            fc2 = QLinear(mlp.fc2.in_features, mlp.fc2.out_features,mlp.fc2.bias is not None)
+            fc2 = QLinear(mlp.fc2.in_features, mlp.fc2.out_features,mlp.fc2.bias is not None, kwargs['wbits'], kwargs['abits'])
             fc2.weight.data.copy_(mlp.fc2.weight)
             fc2.weight_fp.data.copy_(mlp.fc2.weight)
             fc2.bias.data.copy_(mlp.fc2.bias)

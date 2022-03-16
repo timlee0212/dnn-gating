@@ -41,7 +41,8 @@ class precisionGating(Plugin):
     def modelCreationHook(self, model):
         replaceConv(model, wbits=self.wbits, abits=self.abits, pgabits=self.pgabits,
                     th=self.threshold, sparse_bp=self.sparse_bp)
-        replacePGModule(model)
+        replacePGModule(model, wbits=self.wbits, abits=self.abits, pgabits=self.pgabits,
+                    th=self.threshold, sparse_bp=self.sparse_bp)
 
         # Initilize counter for the sparsity
         for m, n in model.named_modules():

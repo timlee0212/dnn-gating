@@ -23,7 +23,7 @@ class Experiment:
         if not os.path.exists(os.path.join(config.Experiment.path, config.Experiment.exp_id)):
             os.mkdir(os.path.join(config.Experiment.path, config.Experiment.exp_id))
         if not os.path.exists(os.path.join(config.Experiment.path, "config.yaml")):
-            yaml.safe_dump(config.config_dict, open(os.path.join(config.Experiment.path, "config.yaml"), 'w'))
+            yaml.safe_dump(config.config_dict, open(os.path.join(config.Experiment.path, config.Experiment.exp_id, "config.yaml"), 'w'))
         self.checkpoint_path = os.path.join(config.Experiment.path,  config.Experiment.exp_id, "ckpt")
 
         if not os.path.exists(self.checkpoint_path):

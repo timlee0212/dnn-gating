@@ -111,7 +111,7 @@ class PGConv2d(nn.Module):
         # Replicate weight
         new_conv.conv.weight.data = conv.weight.data.clone()
         if not new_conv.conv.bias is None:
-            new_conv.conv.bias = conv.bias.data.clone()
+            new_conv.conv.bias.data = conv.bias.data.clone()
         new_conv.conv.weight_fp = conv.weight.data.clone()
         return new_conv
 

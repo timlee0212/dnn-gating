@@ -58,6 +58,7 @@ class Experiment:
             assert (self.config.Experiment.gpu_ids is None) or len(
                 self.config.Experiment.gpu_ids) == 1, "Cannot support multi-GPU in single process mode!"
             self.device = "cpu" if self.config.Experiment.gpu_ids is None else "cuda"
+            os.environ["CUDA_VISIBLE_DEVICES"] = self.config.Experiment.gpu_ids[0]
 
         # Initilize Model
         self._init_model()

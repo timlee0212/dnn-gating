@@ -64,8 +64,11 @@ class Experiment:
 
         # Initilize Dataset
         self._init_data()
-        self.logger = logger.Logger(config, self.device)
-        self.logger.log_model(self.model)
+        if self.main_proc:
+            self.logger = logger.Logger(config, self.device)
+            self.logger.log_model(self.model)
+        else:
+            self.logger = None
 
         # Initilize Trainer
         self._init_trainer()

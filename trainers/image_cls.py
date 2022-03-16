@@ -104,7 +104,7 @@ class imgCls(Trainer):
                 if isinstance(output, (tuple, list)):
                     output = output[0]
 
-                loss = self.test_loss(output, target)
+                loss = self.eval_loss(output, target)
                 acc1, acc5 = accuracy(output, target, topk=(1, 5))
 
                 if self.config.Experiment.dist:

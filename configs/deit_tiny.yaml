@@ -5,7 +5,7 @@ Experiment:
   checkpoint_hist:    10            #Number of checkpoints to keep
   dist:               True         #Start with dist launcher
   seed:               42
-  debug:              False         #Enable debug output
+  debug:              False        #Enable debug output
   gpu_ids:            [2,3]            #GPUs to use
 
 Model:
@@ -16,7 +16,7 @@ Trainer:
   name:             ImageClassification
   amp:              True          #Enable Automatic Mixed Precision
   batch_size:       512
-  val_batch_size:   256
+  val_batch_size:   128
   epochs:           50
   prefetcher:       True
   eval_metric:      top1

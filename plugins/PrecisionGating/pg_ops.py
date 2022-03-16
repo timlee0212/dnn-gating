@@ -161,11 +161,16 @@ class PGAttention(nn.Module):
         self.quantize_MSB = TorchQuantize(pgabits)
         self.greaterThan = GreaterThan.apply
 
+        self.num_out = 0
+        """ number of output features computed at high precision """
+        self.num_high = 0
+
+
     def forward(self, x):
         B, N, C = x.shape
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
         qkv = self.quantize_a(qkv)
-        qkv_msb = self.quantize_MSB(qkv)
+        #qkv_msb = self.quantize_MSB(qkv)
         q, k, v = qkv[0], qkv[1], qkv[2]  # make torchscript happy (cannot use tensor as tuple)
         q_msb = self.quantize_MSB(q)
         k_msb = self.quantize_MSB(k)
@@ -183,4 +188,6 @@ class PGAttention(nn.Module):
         x = (attn @ v).transpose(1, 2).reshape(B, N, C)
         x = self.proj(x)
         x = self.proj_drop(x)
+        self.num_out = mask.numel()
+        self.num_high = torch.sum(mask).item()
         return x

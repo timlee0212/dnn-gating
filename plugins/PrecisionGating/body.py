@@ -69,15 +69,20 @@ class precisionGating(Plugin):
             self.cnt_high[key] = 0
 
     def evalIterHook(self, model, iter_id, logger=None):
-        for m, n in model.named_modules():
-            if hasattr(m, 'weight_fp'):
-                self.cnt_out[n] += m.cnt_out
-                self.cnt_high[n] += m.cnt_high
+        for n, m in model.named_modules():
+            if isinstance(m, (PGConv2d, PGAttention)):
+                self.cmd_logger.debug("Layer {0}, out: {1}, high: {2}".format(n, m.num_out, m.num_high))
+                if n not in self.cnt_out.keys():
+                    self.cnt_out[n] = m.num_out
+                    self.cnt_high[n] = m.num_high
+                else:
+                    self.cnt_out[n] += m.num_out
+                    self.cnt_high[n] += m.num_high
 
     def evalTailHook(self, model, epoch_id=None, logger=None):
         self.sparsity = 100 - sum(self.cnt_high.values()) * \
                         1.0 / sum(self.cnt_out.values())
-        self.cmd_logger.info('Sparsity of the update phase: {0.2f}'.format(self.sparsity))
+        self.cmd_logger.info('Sparsity of the update phase: {0:.2f}'.format(self.sparsity))
 
         # If it is during training
         if epoch_id is not None and logger is not None:

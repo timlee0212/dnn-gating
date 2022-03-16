@@ -1,9 +1,8 @@
+import logging
+
 from core.plugin import Plugin
 from core.registry import registerPlugin
-
 from .pg_utils import *
-
-import logging
 
 
 @registerPlugin
@@ -43,7 +42,7 @@ class precisionGating(Plugin):
         replaceConv(model, wbits=self.wbits, abits=self.abits, pgabits=self.pgabits,
                     th=self.threshold, sparse_bp=self.sparse_bp, skip_layers=self.skip_layers)
         replacePGModule(model, wbits=self.wbits, abits=self.abits, pgabits=self.pgabits,
-                    th=self.threshold, sparse_bp=self.sparse_bp)
+                        th=self.threshold, sparse_bp=self.sparse_bp)
 
         # Initilize counter for the sparsity
         for m, n in model.named_modules():
@@ -75,11 +74,11 @@ class precisionGating(Plugin):
                 self.cnt_out[n] += m.cnt_out
                 self.cnt_high[n] += m.cnt_high
 
-    def evalTailHook(self, model,  epoch_id=None, logger=None):
+    def evalTailHook(self, model, epoch_id=None, logger=None):
         self.sparsity = 100 - sum(self.cnt_high.values()) * \
-            1.0/sum(self.cnt_out.values())
+                        1.0 / sum(self.cnt_out.values())
         self.cmd_logger.info('Sparsity of the update phase: {0.2f}'.format(self.sparsity))
 
-        #If it is during training
+        # If it is during training
         if epoch_id is not None and logger is not None:
             logger.log_scalar(self.sparsity, "PG Sparsity", "Test", epoch_id)

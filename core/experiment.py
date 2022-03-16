@@ -1,18 +1,18 @@
+import datetime
+import logging
 import os
+import shutil
 
 import numpy as np
-import shutil
 import torch
-import logging
-import datetime
 import yaml
-
-from core import model, plugin, dataset, logger, trainer
 from timm.data import resolve_data_config
 from timm.models import convert_splitbn_model, resume_checkpoint
 from timm.optim import create_optimizer_v2
 from timm.scheduler import create_scheduler
 from timm.utils import CheckpointSaver
+
+from core import model, plugin, dataset, logger, trainer
 
 
 class Experiment:
@@ -23,8 +23,9 @@ class Experiment:
         if not os.path.exists(os.path.join(config.Experiment.path, config.Experiment.exp_id)):
             os.mkdir(os.path.join(config.Experiment.path, config.Experiment.exp_id))
         if not os.path.exists(os.path.join(config.Experiment.path, "config.yaml")):
-            yaml.safe_dump(config.config_dict, open(os.path.join(config.Experiment.path, config.Experiment.exp_id, "config.yaml"), 'w'))
-        self.checkpoint_path = os.path.join(config.Experiment.path,  config.Experiment.exp_id, "ckpt")
+            yaml.safe_dump(config.config_dict,
+                           open(os.path.join(config.Experiment.path, config.Experiment.exp_id, "config.yaml"), 'w'))
+        self.checkpoint_path = os.path.join(config.Experiment.path, config.Experiment.exp_id, "ckpt")
 
         if not os.path.exists(self.checkpoint_path):
             os.mkdir(self.checkpoint_path)
@@ -34,8 +35,9 @@ class Experiment:
         root_logger = logging.getLogger()
         log_level = logging.DEBUG if config.Experiment.debug else logging.INFO
         logging.basicConfig(level=log_level)
-        fh = logging.FileHandler(os.path.join(config.Experiment.path, config.Experiment.exp_id, datetime.datetime.now().strftime("%y%m%d-%H-%M")
-                                 + config.Experiment.exp_id + ".log"))
+        fh = logging.FileHandler(os.path.join(config.Experiment.path, config.Experiment.exp_id,
+                                              datetime.datetime.now().strftime("%y%m%d-%H-%M")
+                                              + config.Experiment.exp_id + ".log"))
         fh.setLevel(log_level)
         # ch = logging.StreamHandler()
         # ch.setLevel(log_level)
@@ -73,11 +75,13 @@ class Experiment:
         # Initilize Trainer
         self._init_trainer()
 
-        #Resume Checkpoint
+        # Resume Checkpoint
         self.config.Trainer.start_epoch = 0
         if self.config.Experiment.resume:
-            self.config.Trainer.start_epoch = resume_checkpoint(self.model, self.checkpoint_path, optimizer=self.optimizer,
-                                             loss_scaler=self.trainer.loss_scaler, log_info=self.main_proc)
+            self.config.Trainer.start_epoch = resume_checkpoint(self.model, self.checkpoint_path,
+                                                                optimizer=self.optimizer,
+                                                                loss_scaler=self.trainer.loss_scaler,
+                                                                log_info=self.main_proc)
 
     @classmethod
     def from_folder(cls, folder, new_path=None, copy_checkpoint=False, copy_only=False):
@@ -91,7 +95,6 @@ class Experiment:
             config.Experiment.path = new_path
             yaml.dump(config, open(os.path.join(new_path, "config.yaml"), 'w'))
         return None if copy_only else cls(config)
-
 
     def run(self):
         """
@@ -121,15 +124,16 @@ class Experiment:
                 if self.main_proc:
                     self.cmd_logger.warning(
                         "Cannot find the required checkpoint path {0} for model"
-                        .format(self.config.Model.checkpoint_path))
+                            .format(self.config.Model.checkpoint_path))
 
         for plg in self.plugin_list:
             plg.modelManipHook(model)
 
         self.model.to(self.device, memory_format=torch.channels_last
-                        if self.config.Experiment.channel_last else torch.contiguous_format)
+        if self.config.Experiment.channel_last else torch.contiguous_format)
         if self.config.Experiment.dist:
-            self.model = torch.nn.parallel.distributed.DistributedDataParallel(self.model, device_ids=[self.local_rank,])
+            self.model = torch.nn.parallel.distributed.DistributedDataParallel(self.model,
+                                                                               device_ids=[self.local_rank, ])
 
     def _init_data(self):
         data_config = resolve_data_config(self.config.Data.__dict__, model=self.model,
@@ -161,10 +165,11 @@ class Experiment:
                 kwargs.update(opt_cfg.opt_args)
             return kwargs
 
-        #TODO: Separate vision and possible language task
-        self.optimizer = create_optimizer_v2(self.model, opt=self.config.Trainer.opt.name, **optimizer_kwargs(self.config.Trainer.opt.params))
-        #Try to be compatible with timm API
-        #Urgh, I hate this dirty interface
+        # TODO: Separate vision and possible language task
+        self.optimizer = create_optimizer_v2(self.model, opt=self.config.Trainer.opt.name,
+                                             **optimizer_kwargs(self.config.Trainer.opt.params))
+        # Try to be compatible with timm API
+        # Urgh, I hate this dirty interface
         sched_cfg = self.config.Trainer.sched
         sched_cfg.sched = sched_cfg.name
         sched_cfg.epochs = self.config.Trainer.epochs
@@ -174,18 +179,19 @@ class Experiment:
         if self.main_proc:
             self.cmd_logger.info("Scheduled Epochs: {0}".format(self.config.Trainer.scheduled_epochs))
 
-
-        #Only the main process save checkpoints
+        # Only the main process save checkpoints
         self.saver = None
         if self.main_proc:
             self.saver = CheckpointSaver(model=self.model, optimizer=self.optimizer, args=None,
-                                     checkpoint_dir=self.checkpoint_path, recovery_dir=self.checkpoint_path,
-                                     max_history=self.config.Experiment.checkpoint_hist)
+                                         checkpoint_dir=self.checkpoint_path, recovery_dir=self.checkpoint_path,
+                                         max_history=self.config.Experiment.checkpoint_hist)
 
-        self.trainer = trainer.createTrainer(self.config.Trainer.name, config = self.config, optimizer = self.optimizer,
-                                             scheduler = self.scheduler, logger = self.logger, saver = self.saver, plugins = self.plugin_list,
-                                             verbose=self.main_proc, device=self.device, train_loss = self.train_loss, eval_loss = self.val_loss,           train_loader=self.train_loader, test_loader=self.val_loader)
-
+        self.trainer = trainer.createTrainer(self.config.Trainer.name, config=self.config, optimizer=self.optimizer,
+                                             scheduler=self.scheduler, logger=self.logger, saver=self.saver,
+                                             plugins=self.plugin_list,
+                                             verbose=self.main_proc, device=self.device, train_loss=self.train_loss,
+                                             eval_loss=self.val_loss, train_loader=self.train_loader,
+                                             test_loader=self.val_loader)
 
     def _set_seed(self):
         seed = self.config.Experiment.seed
@@ -205,7 +211,7 @@ class Experiment:
             else "cuda"
         torch.distributed.init_process_group(backend='nccl', init_method='env://')
 
-        #Set visible devices for this process
+        # Set visible devices for this process
         torch.cuda.set_device(torch.device("cuda", self.local_rank))
 
         self.cmd_logger.info('Training in distributed mode with multiple processes, 1 GPU per process. Process {0},'

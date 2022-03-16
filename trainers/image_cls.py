@@ -1,16 +1,18 @@
-#Trainer for image classification task
-from distutils.command.config import config
+# Trainer for image classification task
+
+import logging
+import time
+from collections import OrderedDict
+from contextlib import suppress
+
+import torch
+from timm.models import model_parameters
+from timm.utils import AverageMeter, dispatch_clip_grad, reduce_tensor, accuracy, distribute_bn
 
 import core.plugin
 from core.registry import registerTrainer
 from core.trainer import Trainer
-from timm.utils import AverageMeter, dispatch_clip_grad, reduce_tensor, accuracy, distribute_bn
-from timm.models import model_parameters
-from contextlib import suppress
-from collections import OrderedDict
-import torch
-import logging
-import time
+
 
 @registerTrainer
 class imgCls(Trainer):
@@ -18,8 +20,8 @@ class imgCls(Trainer):
     def trainerName(self):
         return "ImageClassification"
 
-    def __init__(self, config, optimizer, scheduler, logger, saver, train_loss, eval_loss, train_loader = None,
-                 device='cuda', plugins = [], test_loader= None, verbose=False):
+    def __init__(self, config, optimizer, scheduler, logger, saver, train_loss, eval_loss, train_loader=None,
+                 device='cuda', plugins=[], test_loader=None, verbose=False):
         self.config = config
         self.optimizer = optimizer
         self.scheduler = scheduler
@@ -34,7 +36,7 @@ class imgCls(Trainer):
         self.train_loss = train_loss
         self.eval_loss = eval_loss
 
-        self.plugins : list[core.plugin.Plugin] = plugins
+        self.plugins: list[core.plugin.Plugin] = plugins
 
         self.cmd_logger = logging.getLogger("ImageClsTrainer")
         self.eval_metric = config.Trainer.eval_metric
@@ -45,7 +47,6 @@ class imgCls(Trainer):
             saver.amp_scaler = self.loss_scaler
             saver.desceasing = (self.eval_metric == 'loss')
         self.cmd_logger.debug(self.plugins)
-
 
     def trainModel(self, model, **kwargs):
         assert self.train_loader is not None
@@ -69,7 +70,7 @@ class imgCls(Trainer):
 
             eval_metrics = self.evalModel(model, epoch=epoch)
             if self.scheduler is not None:
-                self.scheduler.step(epoch+1, eval_metrics[self.eval_metric])
+                self.scheduler.step(epoch + 1, eval_metrics[self.eval_metric])
             if self.saver is not None:
                 save_metric = eval_metrics[self.eval_metric]
                 best_metric, best_epoch = self.saver.save_checkpoint(epoch, metric=save_metric)
@@ -136,7 +137,8 @@ class imgCls(Trainer):
                             loss=losses_m, top1=top1_m, top5=top5_m))
 
         for plg in self.plugins:
-            plg.evalTailHook(model, logger=self.logger, epoch_id=None if 'epoch' not in kwargs.keys() else kwargs['epoch'])
+            plg.evalTailHook(model, logger=self.logger,
+                             epoch_id=None if 'epoch' not in kwargs.keys() else kwargs['epoch'])
 
         if self.logger is not None and 'epoch' in kwargs.keys() and self.verbose:
             self.logger.log_scalar(losses_m.avg, "loss", "Test", kwargs['epoch'])
@@ -189,17 +191,16 @@ class imgCls(Trainer):
                 losses_m.update(loss.item(), input.size(0))
                 top1_m.update(acc1.item(), output.size(0))
                 top5_m.update(acc5.item(), output.size(0))
-           
 
             for plg in self.plugins:
-                plg.preBackwardHook(model,input, target, loss, epoch)
+                plg.preBackwardHook(model, input, target, loss, epoch)
 
             self.optimizer.zero_grad()
             if self.loss_scaler is not None:
                 self.loss_scaler.scale(loss).backward(create_graph=second_order)
             else:
                 loss.backward(create_graph=second_order)
-            
+
             for plg in self.plugins:
                 plg.preUpdateHook(model, input, target, loss, epoch)
 
@@ -248,8 +249,10 @@ class imgCls(Trainer):
                             top1=top1_m,
                             top5=top5_m,
                             batch_time=batch_time_m,
-                            rate=input.size(0) *  torch.distributed.get_world_size() if self.config.Experiment.dist else 1.0 / batch_time_m.val,
-                            rate_avg=input.size(0) * torch.distributed.get_world_size() if self.config.Experiment.dist else 1.0/ batch_time_m.avg,
+                            rate=input.size(
+                                0) * torch.distributed.get_world_size() if self.config.Experiment.dist else 1.0 / batch_time_m.val,
+                            rate_avg=input.size(
+                                0) * torch.distributed.get_world_size() if self.config.Experiment.dist else 1.0 / batch_time_m.avg,
                             lr=lr,
                             data_time=data_time_m))
 
@@ -257,7 +260,7 @@ class imgCls(Trainer):
                         self.logger.log_scalar(losses_m.avg, "loss", "Train", epoch, batch_idx)
                         self.logger.log_scalar(top1_m.avg, "Top-1_Acc", "Train", epoch, batch_idx)
                         self.logger.log_scalar(top5_m.avg, "Top-5_Acc", "Train", epoch, batch_idx)
-            if self.saver is not None and  self.config.Experiment.recovery_interval and (
+            if self.saver is not None and self.config.Experiment.recovery_interval and (
                     last_batch or (batch_idx + 1) % self.config.Experiment.recovery_interval == 0):
                 self.saver.save_recovery(epoch, batch_idx=batch_idx)
 

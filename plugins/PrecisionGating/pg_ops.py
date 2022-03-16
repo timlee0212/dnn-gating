@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
+
 from .pg_modules import *
+
 
 class QConv2d(nn.Conv2d):
     """
@@ -76,37 +78,36 @@ class PGConv2d(nn.Module):
         if self.th == 0.0:
             return msbOut
 
-        lsbIn = self.quantIn(input)-msbIn
+        lsbIn = self.quantIn(input) - msbIn
         lsbOut = self.conv(lsbIn)
         if self.th == 1.0:
-            return msbOut+lsbOut
+            return msbOut + lsbOut
         """ Calculate the mask """
         mask = self.gt(torch.sigmoid(msbOut), self.th)
         """ update report """
         self.num_out = mask.numel()
         self.num_high = torch.sum(mask).item()
-        return msbOut + mask*lsbOut
-
+        return msbOut + mask * lsbOut
 
     @classmethod
     def copy_conv(cls, conv, **kwargs):
         """
         Alternative constrtor to directly copy from the current convolutional layer
         """
-        assert(conv.bias is None, "The bias of the conv must be false!")
+        assert (conv.bias is None, "The bias of the conv must be false!")
         new_conv = cls(conv.in_channels, conv.out_channels,
-                            kernel_size=conv.kernel_size,
-                            dilation=conv.dilation,
-                            groups=conv.groups,
-                            padding_mode=conv.padding_mode,
-                            stride=conv.stride,
-                            padding=conv.padding,
-                            bias=(not conv.bias is None),
-                            wbits=kwargs['wbits'],
-                            abits=kwargs['abits'],
-                            pgabits=kwargs['pgabits'],
-                            sparse_bp=kwargs['sparse_bp'],
-                            threshold=kwargs['th'])
+                       kernel_size=conv.kernel_size,
+                       dilation=conv.dilation,
+                       groups=conv.groups,
+                       padding_mode=conv.padding_mode,
+                       stride=conv.stride,
+                       padding=conv.padding,
+                       bias=(not conv.bias is None),
+                       wbits=kwargs['wbits'],
+                       abits=kwargs['abits'],
+                       pgabits=kwargs['pgabits'],
+                       sparse_bp=kwargs['sparse_bp'],
+                       threshold=kwargs['th'])
 
         # Replicate weight
         new_conv.conv.weight.data = conv.weight.data.clone()
@@ -115,17 +116,20 @@ class PGConv2d(nn.Module):
         new_conv.conv.weight_fp = conv.weight.data.clone()
         return new_conv
 
+
 class QLinear(nn.Linear):
     """
     A convolutional layer with its weight tensor and input tensor quantized.
     """
-    def __init__(self, in_features, out_features, bias=True,wbits=8,abits=8):
+
+    def __init__(self, in_features, out_features, bias=True, wbits=8, abits=8):
         super(QLinear, self).__init__(in_features, out_features, bias)
         self.register_buffer('weight_fp', self.weight.data.clone())
 
         self.quantize_w = TorchQuantize(wbits)
         self.quantize_a = TorchQuantize(abits)
-        #self.quantize_b = TorchQuantize(32)
+        # self.quantize_b = TorchQuantize(32)
+
     def forward(self, input):
         """
         1. Quantize the input tensor
@@ -137,9 +141,10 @@ class QLinear(nn.Linear):
                         self.quantize_w(self.weight),
                         self.bias)
 
+
 class PGAttention(nn.Module):
     def __init__(self, dim, num_heads=8, qkv_bias=False, attn_drop=0., proj_drop=0., wbits=8, abits=8, pgabits=4,
-             sparse_bp=False, th=0.99):
+                 sparse_bp=False, th=0.99):
         super().__init__()
         self.num_heads = num_heads
         head_dim = dim // num_heads

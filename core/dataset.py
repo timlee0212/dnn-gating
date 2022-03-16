@@ -1,11 +1,12 @@
+import torch.nn as nn
 from timm.data import create_dataset, create_loader, FastCollateMixup, Mixup, AugMixDataset
 from timm.loss import JsdCrossEntropy, BinaryCrossEntropy, SoftTargetCrossEntropy, LabelSmoothingCrossEntropy
-import torch.nn as nn
 
-#A wrapper of timm's implementation
+
+# A wrapper of timm's implementation
 def createTrainLoader(dataset_name, config, data_config):
     augs_config = config.Data.augs
-    
+
     num_aug_splits = 0
     if augs_config.aug_splits > 0:
         assert augs_config.aug_splits > 1, 'A split of 1 makes no sense'
@@ -16,7 +17,6 @@ def createTrainLoader(dataset_name, config, data_config):
         download=config.Data.download,
         batch_size=config.Trainer.batch_size)
 
-
     # setup mixup / cutmix
     mixup_conf = augs_config.mixup
     collate_fn = None
@@ -24,10 +24,11 @@ def createTrainLoader(dataset_name, config, data_config):
     mixup_active = mixup_conf.mixup_alpha > 0 or mixup_conf.cutmix_alpha > 0. or mixup_conf.cutmix_minmax is not None
     if mixup_active:
         mixup_args = dict(
-            mixup_alpha=mixup_conf.mixup_alpha, cutmix_alpha= mixup_conf.cutmix_alpha, cutmix_minmax= mixup_conf.cutmix_minmax,
-            prob= mixup_conf.mixup_prob, switch_prob=mixup_conf.mixup_switch_prob, mode= mixup_conf.mixup_mode,
+            mixup_alpha=mixup_conf.mixup_alpha, cutmix_alpha=mixup_conf.cutmix_alpha,
+            cutmix_minmax=mixup_conf.cutmix_minmax,
+            prob=mixup_conf.mixup_prob, switch_prob=mixup_conf.mixup_switch_prob, mode=mixup_conf.mixup_mode,
             label_smoothing=augs_config.smoothing, num_classes=config.Data.num_classes)
-        if  config.Trainer.prefetcher:
+        if config.Trainer.prefetcher:
             assert not num_aug_splits  # collate conflict (need to support deinterleaving in collate mixup)
             collate_fn = FastCollateMixup(**mixup_args)
         else:
@@ -82,7 +83,8 @@ def createTrainLoader(dataset_name, config, data_config):
             train_loss_fn = SoftTargetCrossEntropy()
     elif augs_config.smoothing:
         if augs_config.loss.bce_loss:
-            train_loss_fn = BinaryCrossEntropy(smoothing=augs_config.smoothing, target_threshold=augs_config.loss.bce_target_thresh)
+            train_loss_fn = BinaryCrossEntropy(smoothing=augs_config.smoothing,
+                                               target_threshold=augs_config.loss.bce_target_thresh)
         else:
             train_loss_fn = LabelSmoothingCrossEntropy(smoothing=augs_config.smoothing)
     else:
@@ -90,8 +92,8 @@ def createTrainLoader(dataset_name, config, data_config):
 
     return loader_train, train_loss_fn
 
-def createValLoader(dataset_name, config, data_config):
 
+def createValLoader(dataset_name, config, data_config):
     dataset_eval = create_dataset(
         dataset_name, root=config.Data.path, split="val", is_training=False,
         download=config.Data.download,
@@ -114,4 +116,3 @@ def createValLoader(dataset_name, config, data_config):
     eval_loss_fn = nn.CrossEntropyLoss()
 
     return loader_eval, eval_loss_fn
-

@@ -96,7 +96,7 @@ class imgCls(Trainer):
                 if not self.config.Trainer.prefetcher:
                     input = input.to(self.device)
                     target = target.to(self.device)
-                if self.config.Experiment.channels_last:
+                if self.config.Experiment.channel_last:
                     input = input.contiguous(memory_format=torch.channels_last)
 
                 with amp_autocast():
@@ -260,6 +260,7 @@ class imgCls(Trainer):
                         self.logger.log_scalar(losses_m.avg, "loss", "Train", epoch, batch_idx)
                         self.logger.log_scalar(top1_m.avg, "Top-1_Acc", "Train", epoch, batch_idx)
                         self.logger.log_scalar(top5_m.avg, "Top-5_Acc", "Train", epoch, batch_idx)
+                        self.logger.log_scalar(lr, "LR", "Train", epoch, batch_idx)
             if self.saver is not None and self.config.Experiment.recovery_interval and (
                     last_batch or (batch_idx + 1) % self.config.Experiment.recovery_interval == 0):
                 self.saver.save_recovery(epoch, batch_idx=batch_idx)

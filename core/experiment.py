@@ -58,7 +58,7 @@ class Experiment:
             assert (self.config.Experiment.gpu_ids is None) or len(
                 self.config.Experiment.gpu_ids) == 1, "Cannot support multi-GPU in single process mode!"
             self.device = "cpu" if self.config.Experiment.gpu_ids is None else "cuda"
-            os.environ["CUDA_VISIBLE_DEVICES"] = self.config.Experiment.gpu_ids[0]
+            os.environ["CUDA_VISIBLE_DEVICES"] = str(self.config.Experiment.gpu_ids[0])
 
         # Initilize Model
         self._init_model()
@@ -66,8 +66,7 @@ class Experiment:
         # Initilize Dataset
         self._init_data()
         if self.main_proc:
-            self.logger = logger.Logger(config, self.device)
-            self.logger.log_model(self.model)
+            self.logger = logger.Logger(config)
         else:
             self.logger = None
 
@@ -102,11 +101,12 @@ class Experiment:
 
     def _init_plugins(self):
         self.plugin_list = []
-        for pl_conf in self.config.Plugins:
-            if self.main_proc:
-                self.cmd_logger.debug(
-                    "Initializing plugin {0}\n Params {1}".format(pl_conf.name, str(pl_conf.params.__dict__)))
-            self.plugin_list.append(plugin.createPlugin(pl_conf.name, **pl_conf.params.__dict__))
+        if self.config.Plugins is not None:
+            for pl_conf in self.config.Plugins:
+                if self.main_proc:
+                    self.cmd_logger.debug(
+                        "Initializing plugin {0}\n Params {1}".format(pl_conf.name, str(pl_conf.params.__dict__)))
+                self.plugin_list.append(plugin.createPlugin(pl_conf.name, **pl_conf.params.__dict__))
 
     def _init_model(self):
         # Create Model
@@ -183,8 +183,8 @@ class Experiment:
                                      max_history=self.config.Experiment.checkpoint_hist)
 
         self.trainer = trainer.createTrainer(self.config.Trainer.name, config = self.config, optimizer = self.optimizer,
-                                             scheduler = self.scheduler, logger = self.logger, saver = self.saver,
-                                             verbose=self.main_proc, device=self.device, train_loss = self.train_loss, eval_loss = self.val_loss, train_loader=self.train_loader, test_loader=self.val_loader)
+                                             scheduler = self.scheduler, logger = self.logger, saver = self.saver, plugins = self.plugin_list,
+                                             verbose=self.main_proc, device=self.device, train_loss = self.train_loss, eval_loss = self.val_loss,           train_loader=self.train_loader, test_loader=self.val_loader)
 
 
     def _set_seed(self):

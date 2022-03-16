@@ -6,7 +6,7 @@ Experiment:
   dist:               True         #Start with dist launcher
   seed:               42
   debug:              False         #Enable debug output
-  gpu_ids:            [0, 1]            #GPUs to use
+  gpu_ids:            [1,2]            #GPUs to use
 
 Model:
   model_name:       resnet18

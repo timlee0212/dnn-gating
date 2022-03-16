@@ -5,13 +5,12 @@ import torch
 import logging
 
 class Logger:
-    def __init__(self, config, device='cuda'):
+    def __init__(self, config):
         self.batch_size = config.Trainer.batch_size
         self.steps_per_epoch = config.Trainer.steps_per_epoch
         self.input_size = config.Data.input_size
         self.writer = SummaryWriter(os.path.join(config.Experiment.path, config.Experiment.exp_id, "logs"))
         self.cmd_logger = logging.getLogger("Logger")
-        self.device = device
     
     def log_scalar(self, value, name, stage, epoch, steps=0):
         """

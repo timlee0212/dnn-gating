@@ -3,7 +3,7 @@ from core import Config, Experiment
 import os
 
 #FIX BUG
-os.environ['MKL_THREADING_LAYER'] = 'GNU'
+#os.environ['MKL_THREADING_LAYER'] = 'GNU'
 
 parser = argparse.ArgumentParser(description='Training Config', add_help=True)
 parser.add_argument('-c', '--config', default=None, type=str,

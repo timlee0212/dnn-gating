@@ -55,7 +55,7 @@ class precisionGating(Plugin):
             if hasattr(p, 'weight_fp'):
                 p.weight.data.copy_(p.weight_fp)
 
-    def iterTailHook(self, model, iter_id):
+    def iterTailHook(self, model, inputs, targets, logger, iter_id):
         for p in model.modules():
             if hasattr(p, 'weight_fp'):
                 p.weight_fp.data.copy_(p.weight.data.clamp_(-1, 1))

@@ -44,6 +44,7 @@ class imgCls(Trainer):
         if saver is not None:
             saver.amp_scaler = self.loss_scaler
             saver.desceasing = (self.eval_metric == 'loss')
+        self.cmd_logger.debug(self.plugins)
 
 
     def trainModel(self, model, **kwargs):
@@ -165,6 +166,7 @@ class imgCls(Trainer):
         num_updates = epoch * len(self.train_loader)
 
         for batch_idx, (input, target) in enumerate(self.train_loader):
+            self.cmd_logger.debug("Iteration: {0}".format(batch_idx))
             last_batch = batch_idx == last_idx
             data_time_m.update(time.time() - end)
             if not self.config.Trainer.prefetcher:
@@ -187,6 +189,7 @@ class imgCls(Trainer):
                 losses_m.update(loss.item(), input.size(0))
                 top1_m.update(acc1.item(), output.size(0))
                 top5_m.update(acc5.item(), output.size(0))
+           
 
             for plg in self.plugins:
                 plg.preBackwardHook(model,input, target, loss, epoch)
@@ -196,7 +199,7 @@ class imgCls(Trainer):
                 self.loss_scaler.scale(loss).backward(create_graph=second_order)
             else:
                 loss.backward(create_graph=second_order)
-
+            
             for plg in self.plugins:
                 plg.preUpdateHook(model, input, target, loss, epoch)
 
@@ -206,7 +209,7 @@ class imgCls(Trainer):
                 dispatch_clip_grad(
                     model_parameters(model, exclude_head='agc' in self.config.Trainer.opt.params.clip_mode),
                     value=self.config.Trainer.opt.params.clip_grad, mode=self.config.Trainer.opt.params.clip_mode)
-
+            torch.distributed.barrier()
             if self.loss_scaler is not None:
                 self.loss_scaler.step(self.optimizer)
                 self.loss_scaler.update()

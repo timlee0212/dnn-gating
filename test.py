@@ -1,6 +1,6 @@
 from core import Config, Experiment
 
-conf = Config("./configs/example.yaml")
+conf = Config("configs/default.yaml")
 exp = Experiment(conf)
 
 exp.run()

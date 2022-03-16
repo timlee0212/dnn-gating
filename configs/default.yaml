@@ -1,0 +1,108 @@
+#Following the example script of timm library
+Experiment:
+  exp_id:             test            #Experiment Name
+  path:               ./checkpoint #Path to save Experiment File, will store in "path/exp_id"
+  checkpoint_hist:    10            #Number of checkpoints to keep
+  dist:               False         #Start with dist launcher
+  seed:               42
+  debug:              False         #Enable debug output
+  channel_last:       False
+  resume:             True
+  recovery_interval:  100
+  log_interval:       16
+  sync_bn:          False
+  split_bn:         False
+  dist_bn:          reduce
+  model_ema:        False
+  gpu_ids:                        #GPUs to use
+    - 0
+
+Model:
+  model_name:       resnet18
+  pretrained:       True
+  checkpoint_path:  null              #Custom Checkpoint Path
+  scriptable:       null
+  exportable:       null
+  no_jit:           null
+
+
+Trainer:
+  name:             ImageClassification
+  amp:              True          #Enable Automatic Mixed Precision
+  batch_size:       128
+  val_batch_size:   128 
+  epochs:           30
+  prefetcher:       True
+  eval_metric:      top1
+  opt:    #Optimizer Settings
+    name:           sgd
+    params:        
+      lr:             0.01        #Initial Learning Rate
+      eps:          null
+      betas:        null
+      momentum:     0.9
+      weight_decay: 2.0e-5
+      clip_grad:    null        #Clip gradient norm (default: null, no clipping)
+      clip_mode:    norm        #Gradient clipping mode. One of ("norm", "value", "agc")
+  sched:  #LR Scheduler Settings
+    name:           step        #Name of the LR Scheduler
+    lr_noise:       null        #Learning rate noise on/off epoch percentages
+    lr_noise_pct:   0.67        #Learning rate noise limit percent (default: 0.67)
+    lr_noise_std:   1.0         #learning rate noise std-dev (default: 1.0)
+    lr_cycle_mul:   1.0         #learning rate cycle len multiplier (default: 1.0)')
+    lr_cycle_decay:
+    lr_cycle_limit:
+    lr_k_decay:
+    warmup_lr:
+    min_lr:
+    decay_epochs:
+    warmup_epochs:
+    cooldown_epochs:
+    patience_epochs:
+    decay_rate:   
+
+Data:
+  name:               null #Dataset Name
+  path:               null  #Dataset Path
+  download:           False
+  num_classes:        1000
+  num_workers:        4
+  pin_mem:            True
+  input_size:         [3, 224, 224]
+  #mean:              #Use default 
+  #std:               #Use default
+  augs:               #All augmentation options
+    no_aug:           False
+    scale:            [0.08, 1.0] 
+    ratio:            [0.75, 1.33]
+    hflip:            0.5
+    vflip:            0
+    color_jitter:     0.4
+    autoaug:          null
+    aug_repeats:      0
+    aug_splits:       0
+    loss: 
+      jsd_loss:       False
+      bce_loss:       False
+      bce_target_thresh:  null
+    random_earse:
+      reprob:         0
+      remode:         pixel
+      recount:        1
+      resplit:        False
+    mixup:
+      mixup_alpha:    0
+      cutmix_alpha:   0
+      cutmix_minmax:  null
+      mixup_prob:     1.0
+      mixup_switch_prob:  0.5
+      mixup_mode:     batch
+      mixup_off_epoch: 0
+    smoothing:        0.1
+    train_interpolation:  random
+    drop:             0
+    drop_path:        null
+    drop_block:       null
+
+
+

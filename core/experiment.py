@@ -1,6 +1,7 @@
 import os
 
 import numpy as np
+import shutil
 import torch
 import logging
 import datetime
@@ -76,11 +77,17 @@ class Experiment:
                                              loss_scaler=self.trainer.loss_scaler, log_info=self.main_proc)
 
     @classmethod
-    def from_folder(cls, folder, new_path=None):
+    def from_folder(cls, folder, new_path=None, copy_checkpoint=False):
         """
         Resume an experiment from a predefined folder
         """
-        pass
+        config = yaml.safe_load(os.path.join(folder, "config.yaml"))
+        if new_path is not None and copy_checkpoint:
+            logger.getLogger().info("Copying File to the new experiment folder")
+            shutil.copytree(folder, new_path)
+            config.Experiment.path = new_path
+        return cls(config)
+
 
     def run(self):
         """
@@ -167,7 +174,8 @@ class Experiment:
         self.saver = None
         if self.main_proc:
             self.saver = CheckpointSaver(model=self.model, optimizer=self.optimizer, args=None,
-                                     checkpoint_dir=self.checkpoint_path, recovery_dir=self.checkpoint_path)
+                                     checkpoint_dir=self.checkpoint_path, recovery_dir=self.checkpoint_path,
+                                     max_history=self.config.Experiment.checkpoint_hist)
 
         self.trainer = trainer.createTrainer(self.config.Trainer.name, config = self.config, optimizer = self.optimizer,
                                              scheduler = self.scheduler, logger = self.logger, saver = self.saver,

@@ -21,8 +21,24 @@ class Struct(object):
 
 class Config(Struct):
     def __init__(self, config_path):
-        self.config_dict = yaml.safe_load(open(config_path, "r"))
+        default_config = yaml.safe_load(open("./configs/default.yaml", 'r'))
+        new_config = yaml.safe_load(open(config_path, "r"))
+
+        self._overwrite_dict(new_config, default_config)
+        self.config_dict = default_config
+
         super(Config, self).__init__(self.config_dict)
 
     def dump(self, dump_path):
         yaml.safe_dump(self.config_dict, open(dump_path, "w"))
+
+    def _overwrite_dict(self, src, dst):
+        for key, value in src.items():
+            if key in dst.keys():
+                if isinstance(value, dict) and isinstance(dst[key], dict):
+                    self._overwrite_dict(value, dst[key])
+                else:
+                    dst[key] = value
+            else:
+                dst[key] = value
+                

@@ -38,7 +38,7 @@ Trainer:
   opt:    #Optimizer Settings
     name:           sgd
     params:        
-      lr:             0.01        #Initial Learning Rate
+      lr:           0.05        #Initial Learning Rate
       eps:          null
       betas:        null
       momentum:     0.9
@@ -51,16 +51,16 @@ Trainer:
     lr_noise_pct:   0.67        #Learning rate noise limit percent (default: 0.67)
     lr_noise_std:   1.0         #learning rate noise std-dev (default: 1.0)
     lr_cycle_mul:   1.0         #learning rate cycle len multiplier (default: 1.0)')
-    lr_cycle_decay:
-    lr_cycle_limit:
-    lr_k_decay:
-    warmup_lr:
-    min_lr:
-    decay_epochs:
-    warmup_epochs:
-    cooldown_epochs:
-    patience_epochs:
-    decay_rate:   
+    lr_cycle_decay: 0.5
+    lr_cycle_limit: 1
+    lr_k_decay:     1.0
+    warmup_lr:      0.0001
+    min_lr:         1.0e-6
+    decay_epochs:   100
+    warmup_epochs:  3
+    cooldown_epochs: 10
+    patience_epochs: 10
+    decay_rate:     0.1
 
 Data:
   name:               null #Dataset Name

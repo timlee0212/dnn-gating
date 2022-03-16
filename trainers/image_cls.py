@@ -138,8 +138,8 @@ class imgCls(Trainer):
 
         if self.logger is not None and 'epoch' in kwargs.keys() and self.verbose:
             self.logger.log_scalar(losses_m.avg, "loss", "Test", kwargs['epoch'])
-            self.logger.log_scalar(top1_m.avg, "Top-1 Acc", "Test", kwargs['epoch'])
-            self.logger.log_scalar(top5_m.avg, "Top-5 Acc", "Test", kwargs['epoch'])
+            self.logger.log_scalar(top1_m.avg, "Top-1_Acc", "Test", kwargs['epoch'])
+            self.logger.log_scalar(top5_m.avg, "Top-5_Acc", "Test", kwargs['epoch'])
         metrics = OrderedDict([('loss', losses_m.avg), ('top1', top1_m.avg), ('top5', top5_m.avg)])
 
         return metrics
@@ -251,8 +251,8 @@ class imgCls(Trainer):
 
                     if self.logger is not None:
                         self.logger.log_scalar(losses_m.avg, "loss", "Train", epoch, batch_idx)
-                        self.logger.log_scalar(top1_m.avg, "Top-1 Acc", "Train", epoch, batch_idx)
-                        self.logger.log_scalar(top5_m.avg, "Top-5 Acc", "Train", epoch, batch_idx)
+                        self.logger.log_scalar(top1_m.avg, "Top-1_Acc", "Train", epoch, batch_idx)
+                        self.logger.log_scalar(top5_m.avg, "Top-5_Acc", "Train", epoch, batch_idx)
             if self.saver is not None and  self.config.Experiment.recovery_interval and (
                     last_batch or (batch_idx + 1) % self.config.Experiment.recovery_interval == 0):
                 self.saver.save_recovery(epoch, batch_idx=batch_idx)

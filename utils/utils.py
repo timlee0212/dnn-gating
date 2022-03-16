@@ -98,7 +98,7 @@ def replace_conv(model, skip_layers=None, **kwargs):
         parent = model
         for mkey in name_seq:
             n_parent = parent._modules[mkey]
-            # Current module is a leaf nod
+            # Current module is a leaf node
             if len(n_parent._modules) == 0:
                 # Make sure the leaf node is a convolutioan operation
                 assert(isinstance(n_parent, torch.nn.Conv2d))

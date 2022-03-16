@@ -125,7 +125,7 @@ class Experiment:
         self.model.to(self.device, memory_format=torch.channels_last
                         if self.config.Experiment.channel_last else torch.contiguous_format)
         if self.config.Experiment.dist:
-            self.model = torch.nn.parallel.distributed.DistributedDataParallel(self.model, device_ids=self.local_rank)
+            self.model = torch.nn.parallel.distributed.DistributedDataParallel(self.model, device_ids=[self.local_rank,])
 
     def _init_data(self):
         data_config = resolve_data_config(self.config.Data.__dict__, model=self.model,
@@ -202,7 +202,7 @@ class Experiment:
         torch.distributed.init_process_group(backend='nccl', init_method='env://')
 
         self.cmd_logger.info('Training in distributed mode with multiple processes, 1 GPU per process. Process {0},'
-                             ' total {1}}.'.format(self.local_rank, torch.distributed.get_world_size()))
+                             ' total {1}.'.format(self.local_rank, torch.distributed.get_world_size()))
 
         # Deal with sync BN in the distributed setting
         if self.config.Experiment.sync_bn:

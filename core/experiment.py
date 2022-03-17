@@ -2,6 +2,7 @@ import datetime
 import logging
 import os
 import shutil
+from joblib import Parallel
 
 import numpy as np
 import torch
@@ -10,7 +11,7 @@ from timm.data import resolve_data_config
 from timm.models import convert_splitbn_model, resume_checkpoint
 from timm.optim import create_optimizer_v2
 from timm.scheduler import create_scheduler
-from timm.utils import CheckpointSaver
+from timm.utils import CheckpointSaver, unwrap_model
 
 from core import model, plugin, dataset, logger, trainer
 
@@ -18,18 +19,23 @@ from core import model, plugin, dataset, logger, trainer
 class Experiment:
     def __init__(self, config):
         self.config = config
+
         if not os.path.exists(config.Experiment.path):
             os.mkdir(config.Experiment.path)
         if not os.path.exists(os.path.join(config.Experiment.path, config.Experiment.exp_id)):
-            os.mkdir(os.path.join(config.Experiment.path, config.Experiment.exp_id))
+            os.mkdir(os.path.join(config.Experiment.path,
+                     config.Experiment.exp_id))
         if not os.path.exists(os.path.join(config.Experiment.path, "config.yaml")):
             yaml.safe_dump(config.config_dict,
                            open(os.path.join(config.Experiment.path, config.Experiment.exp_id, "config.yaml"), 'w'))
-        self.checkpoint_path = os.path.join(config.Experiment.path, config.Experiment.exp_id, "ckpt")
+        self.checkpoint_path = os.path.join(
+            config.Experiment.path, config.Experiment.exp_id, "ckpt")
 
         if not os.path.exists(self.checkpoint_path):
             os.mkdir(self.checkpoint_path)
-        self.config.Experiment.resume = False
+            self.config.Experiment.resume = False
+        else:
+            self.config.Experiment.resume = os.path.exists(os.path.join(self.checkpoint_path, "last.pth.tar"))
 
         # Setup output logger
         root_logger = logging.getLogger()
@@ -45,6 +51,7 @@ class Experiment:
         root_logger.addHandler(fh)
 
         self.cmd_logger = logging.getLogger("Experiment")
+        self.cmd_logger.debug(self.config.config_dict)
 
         # Single process by default
         self.main_proc = True
@@ -60,7 +67,8 @@ class Experiment:
             assert (self.config.Experiment.gpu_ids is None) or len(
                 self.config.Experiment.gpu_ids) == 1, "Cannot support multi-GPU in single process mode!"
             self.device = "cpu" if self.config.Experiment.gpu_ids is None else "cuda"
-            os.environ["CUDA_VISIBLE_DEVICES"] = str(self.config.Experiment.gpu_ids[0])
+            os.environ["CUDA_VISIBLE_DEVICES"] = str(
+                self.config.Experiment.gpu_ids[0])
 
         # Initilize Model
         self._init_model()
@@ -78,7 +86,9 @@ class Experiment:
         # Resume Checkpoint
         self.config.Trainer.start_epoch = 0
         if self.config.Experiment.resume:
-            self.config.Trainer.start_epoch = resume_checkpoint(self.model, self.checkpoint_path,
+            self.cmd_logger.debug(
+                "Loading Checkpoint from from {0}".format(self.checkpoint_path))
+            self.config.Trainer.start_epoch = resume_checkpoint(unwrap_model(self.model), os.path.join(self.checkpoint_path, "last.pth.tar"),
                                                                 optimizer=self.optimizer,
                                                                 loss_scaler=self.trainer.loss_scaler,
                                                                 log_info=self.main_proc)
@@ -109,7 +119,8 @@ class Experiment:
                 if self.main_proc:
                     self.cmd_logger.debug(
                         "Initializing plugin {0}\n Params {1}".format(pl_conf.name, str(pl_conf.params.__dict__)))
-                self.plugin_list.append(plugin.createPlugin(pl_conf.name, **pl_conf.params.__dict__))
+                self.plugin_list.append(plugin.createPlugin(
+                    pl_conf.name, **pl_conf.params.__dict__))
 
     def _init_model(self):
         # Create Model
@@ -119,18 +130,19 @@ class Experiment:
 
         if self.config.Model.checkpoint_path is not None:
             if os.path.exists(self.config.Model.checkpoint_path):
-                self.model.load_state_dict(torch.load(self.config.Model.checkpoint_path, map_location="cpu"))
+                self.model.load_state_dict(torch.load(
+                    self.config.Model.checkpoint_path, map_location="cpu"))
             else:
                 if self.main_proc:
                     self.cmd_logger.warning(
                         "Cannot find the required checkpoint path {0} for model"
-                            .format(self.config.Model.checkpoint_path))
+                        .format(self.config.Model.checkpoint_path))
 
         for plg in self.plugin_list:
             plg.modelManipHook(model)
 
         self.model.to(self.device, memory_format=torch.channels_last
-        if self.config.Experiment.channel_last else torch.contiguous_format)
+                      if self.config.Experiment.channel_last else torch.contiguous_format)
         if self.config.Experiment.dist:
             self.model = torch.nn.parallel.distributed.DistributedDataParallel(self.model,
                                                                                device_ids=[self.local_rank, ])
@@ -139,8 +151,10 @@ class Experiment:
         data_config = resolve_data_config(self.config.Data.__dict__, model=self.model,
                                           default_cfg=self.config.Data.__dict__, verbose=self.main_proc)
         self.cmd_logger.debug(data_config)
-        self.train_loader, self.train_loss = dataset.createTrainLoader(self.config.Data.name, self.config, data_config)
-        self.val_loader, self.val_loss = dataset.createValLoader(self.config.Data.name, self.config, data_config)
+        self.train_loader, self.train_loss = dataset.createTrainLoader(
+            self.config.Data.name, self.config, data_config)
+        self.val_loader, self.val_loss = dataset.createValLoader(
+            self.config.Data.name, self.config, data_config)
 
         self.train_loss.to(self.device)
         self.val_loss.to(self.device)
@@ -175,9 +189,11 @@ class Experiment:
         sched_cfg.epochs = self.config.Trainer.epochs
         sched_cfg.lr = self.config.Trainer.opt.params.lr
 
-        self.scheduler, self.config.Trainer.scheduled_epochs = create_scheduler(sched_cfg, self.optimizer)
+        self.scheduler, self.config.Trainer.scheduled_epochs = create_scheduler(
+            sched_cfg, self.optimizer)
         if self.main_proc:
-            self.cmd_logger.info("Scheduled Epochs: {0}".format(self.config.Trainer.scheduled_epochs))
+            self.cmd_logger.info("Scheduled Epochs: {0}".format(
+                self.config.Trainer.scheduled_epochs))
 
         # Only the main process save checkpoints
         self.saver = None
@@ -209,7 +225,8 @@ class Experiment:
 
         self.device = "cpu" if self.config.Experiment.gpu_ids is None \
             else "cuda"
-        torch.distributed.init_process_group(backend='nccl', init_method='env://')
+        torch.distributed.init_process_group(
+            backend='nccl', init_method='env://')
 
         # Set visible devices for this process
         torch.cuda.set_device(torch.device("cuda", self.local_rank))
@@ -220,11 +237,13 @@ class Experiment:
         # Deal with sync BN in the distributed setting
         if self.config.Experiment.sync_bn:
             assert not self.config.Experiment.split_bn
-            self.model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(self.model)
+            self.model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(
+                self.model)
 
             if self.main_proc:
                 self.cmd_logger.warning("Converted model to use Synchronized BatchNorm. WARNING: You may have issues if using \
                                         zero initialized BN layers (enabled by default for ResNets) while sync-bn enabled.")
         if self.config.Experiment.split_bn:
             assert self.config.Data.augs.aug_splits > 1 or self.config.Data.augs.random_earse.resplit
-            self.model = convert_splitbn_model(model, max(self.config.Experiment.split_bn, 2))
+            self.model = convert_splitbn_model(
+                model, max(self.config.Experiment.split_bn, 2))

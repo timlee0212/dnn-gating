@@ -25,7 +25,7 @@ class Logger:
         """
         Log the model structure
         """
-        pseudo_input = torch.randn(self.input_size).to(self.device)
+        #pseudo_input = torch.randn(self.input_size).to(self.device)
         # temp_model = model.clone().to("cpu")
         try:
             self.writer.add_graph(model, pseudo_input)

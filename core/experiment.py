@@ -76,7 +76,7 @@ class Experiment:
         # Initilize Dataset
         self._init_data()
         if self.main_proc:
-            self.logger = logger.Logger(config)
+            self.logger = logger.Logger(self.config)
         else:
             self.logger = None
 
@@ -161,6 +161,7 @@ class Experiment:
 
         self.config.Data.input_size = data_config["input_size"]
         self.config.Trainer.steps_per_epoch = len(self.train_loader)
+        print(self.config.Trainer.steps_per_epoch)
 
     def _init_trainer(self):
         def optimizer_kwargs(opt_cfg):

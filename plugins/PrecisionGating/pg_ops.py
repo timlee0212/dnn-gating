@@ -179,6 +179,10 @@ class PGAttention(nn.Module):
         attn_msb = attn_msb.softmax(dim=-1)
         mask = self.gt.apply(attn_msb, self.threshold)
 
+        #Manipulate the mask according our scheduling scheme
+        if not self.training:
+
+
         attn = (q @ k.transpose(-2, -1)) * self.scale
         attn = attn * mask
         attn = attn.softmax(dim=-1)

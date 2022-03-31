@@ -23,8 +23,10 @@ if __name__=="__main__":
         #Config validation batchsize so that it can fit into the GPU mem
         config.Trainer.val_batch_size = config.Trainer.val_batch_size / len(config.Experiment.gpu_ids)
         if args.checkpoint is not None:
-            config.Model.checkpoint_path = args.checkpoint
+            config.Experiment.checkpoint_path = args.checkpoint
             __logger.info("Using checkpoint at {0}".format(args.checkpoint))
+        else:
+            config.Experiment.checkpoint_path = None
         __logger.info("Using config file. Ignoring experiment path setting")
         ins = inspector.Inspector(config)
     elif args.exp_path is not None:

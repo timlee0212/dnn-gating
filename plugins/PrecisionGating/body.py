@@ -86,8 +86,8 @@ class precisionGating(Plugin):
 
     def evalTailHook(self, model, epoch_id=None, logger=None):
         if sum(self.cnt_high.values()) > 0:
-            self.sparsity = 100 - sum(self.cnt_high.values()) * \
-                            1.0 / sum(self.cnt_out.values())
+            self.sparsity = 100 - (sum(self.cnt_high.values()) * \
+                            1.0 / sum(self.cnt_out.values())) * 100
             self.cmd_logger.info('Sparsity of the update phase: {0:.2f}'.format(self.sparsity))
 
             # If it is during training

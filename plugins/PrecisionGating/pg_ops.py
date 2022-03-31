@@ -186,13 +186,13 @@ class PGAttention(nn.Module):
         msb_mask = torch.zeros_like(mask)
 
         #Manipulate the mask according our scheduling scheme
-        if not self.training and self.ena_shedule:
+        if not self.training and self.ena_schedule:
             #Attention Mask Shape [batch, head, token, token]
             sched_mask_split = torch.tensor_split(mask, math.ceil(mask.shape[2]//self.n_banks), dim=2)
-            sched_msb_mask_split = torch.tensor_split(mask, math.ceil(mask.shape[2]//self.n_banks), dim=2)
+            sched_msb_mask_split = torch.tensor_split(msb_mask, math.ceil(mask.shape[2]//self.n_banks), dim=2)
             #Then we get a list of VIEWS
             for (split, msb_split) in zip(sched_mask_split, sched_msb_mask_split):
-                iss_order = split.cumsum(dim=3)        #We get a cumulative sum, we then should apply it to the non-zero position of the original tensor.
+                iss_order = split.cumsum(dim=2)        #We get a cumulative sum, we then should apply it to the non-zero position of the original tensor.
                 iss_order[split==0] = 0                #Only those edge values are valid
                 for idx in reversed(range(int(torch.max(iss_order).item()))):
                     #[batch, head]
@@ -205,12 +205,13 @@ class PGAttention(nn.Module):
                     sel_msb_mask_slices[sel_order_slices==idx] = 1
 
                     #Early Exit to reduce time, all requires schedule have been reviewed
-                    if torch.sum(indicator) == sel_.numel() * split.shape[2]:
+                    if torch.sum(indicator) == sel_.shape[0] * sel_.shape[1] * split.shape[2]:
                         break
 
-
         attn = (q @ k.transpose(-2, -1)) * self.scale
-        attn = attn * mask + attn_msb * msb_mask if self.ena_schedule else 0
+        attn = attn * mask 
+        if self.ena_schedule:
+            attn += attn_msb * msb_mask
         attn = attn.softmax(dim=-1)
         attn = self.attn_drop(attn)
         attn = self.quantize_a(attn)

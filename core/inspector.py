@@ -6,6 +6,7 @@ import torch
 import yaml
 from timm.data import resolve_data_config
 from timm.models import resume_checkpoint
+from core.config import Config
 
 from core.dataset import createValLoader
 from core.model import createModel
@@ -19,7 +20,7 @@ class Inspector:
 
         #We only use one GPU for evaluation
         self.config.Experiment.dist = False
-        self.checkpoint_path = os.path.join(config.Experiment.path, config.Experiment.exp_id, "ckpt")
+        self.checkpoint_path = os.path.join(config.Experiment.path, config.Experiment.exp_id, "ckpt", "last.pth.tar")
         # Setup output logger
         root_logger = logging.getLogger()
         log_level = logging.DEBUG if config.Experiment.debug else logging.INFO
@@ -53,7 +54,7 @@ class Inspector:
         """
         Resume an experiment from a predefined folder
         """
-        config = yaml.safe_load(os.path.join(folder, "config.yaml"))
+        config = Config(os.path.join(folder, "config.yaml"))
         #Load the checkpoint from experiment folder by default
         config.Experiment.resume = True
         #Config validation batchsize so that it can fit into the GPU mem
@@ -80,14 +81,14 @@ class Inspector:
         for plg in self.plugin_list:
             plg.modelCreationHook(self.model)
 
-        if self.config.Model.checkpoint_path is not None:
-            if os.path.exists(self.config.Model.checkpoint_path):
-                ckpt = torch.load(self.config.Model.checkpoint_path, map_location="cpu")
+        if self.config.Experiment.checkpoint_path is not None:
+            if os.path.exists(self.config.Experiment.checkpoint_path):
+                ckpt = torch.load(self.config.Experiment.checkpoint_path, map_location="cpu")
                 #Whether it is a checkpoint saved by saver
                 if "state_dict" in ckpt.keys():
                     #Use resume checkpoint function
                     self.config.Experiment.resume = True
-                    self.checkpoint_path = self.config.Model.checkpoint_path
+                    self.checkpoint_path = self.config.Experiment.checkpoint_path
                 else:
                     #Do not need further resume since we already load the model
                     self.config.Experiment.resume = False

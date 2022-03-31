@@ -11,13 +11,17 @@ class precisionGating(Plugin):
     def pluginName(self):
         return "PrecisionGating"
 
-    def __init__(self, wbits, abits, pgabits, threshold, sparse_bp=False, skip_layers=None):
+    def __init__(self, wbits, abits, pgabits, threshold, n_banks = 8, sched_th = 4,
+                ena_schedule = False, sparse_bp=False, skip_layers=None):
         self.wbits = wbits
         self.abits = abits
         self.pgabits = pgabits
         self.sparse_bp = sparse_bp
         self.threshold = threshold
         self.skip_layers = skip_layers
+        self.n_banks = n_banks
+        self.sched_th = sched_th
+        self.ena_schedule = ena_schedule
 
         self.cmd_logger = logging.getLogger("PG")
 
@@ -42,7 +46,8 @@ class precisionGating(Plugin):
         replaceConv(model, wbits=self.wbits, abits=self.abits, pgabits=self.pgabits,
                     th=self.threshold, sparse_bp=self.sparse_bp, skip_layers=self.skip_layers)
         replacePGModule(model, wbits=self.wbits, abits=self.abits, pgabits=self.pgabits,
-                        th=self.threshold, sparse_bp=self.sparse_bp)
+                        th=self.threshold, sparse_bp=self.sparse_bp, n_banks = self.n_banks, 
+                        sched_th = self.sched_th, ena_schedule = self.ena_schedule)
 
         # Initilize counter for the sparsity
         for m, n in model.named_modules():
@@ -80,10 +85,11 @@ class precisionGating(Plugin):
                     self.cnt_high[n] += m.num_high
 
     def evalTailHook(self, model, epoch_id=None, logger=None):
-        self.sparsity = 100 - sum(self.cnt_high.values()) * \
-                        1.0 / sum(self.cnt_out.values())
-        self.cmd_logger.info('Sparsity of the update phase: {0:.2f}'.format(self.sparsity))
+        if sum(self.cnt_high.values()) > 0:
+            self.sparsity = 100 - sum(self.cnt_high.values()) * \
+                            1.0 / sum(self.cnt_out.values())
+            self.cmd_logger.info('Sparsity of the update phase: {0:.2f}'.format(self.sparsity))
 
-        # If it is during training
-        if epoch_id is not None and logger is not None:
-            logger.log_scalar(self.sparsity, "PG Sparsity", "Test", epoch_id)
+            # If it is during training
+            if epoch_id is not None and logger is not None:
+                logger.log_scalar(self.sparsity, "PG Sparsity", "Test", epoch_id)

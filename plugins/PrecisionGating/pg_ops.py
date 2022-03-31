@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import math
 
 from .pg_modules import *
 
@@ -144,11 +145,14 @@ class QLinear(nn.Linear):
 
 class PGAttention(nn.Module):
     def __init__(self, dim, num_heads=8, qkv_bias=False, attn_drop=0., proj_drop=0., wbits=8, abits=8, pgabits=4,
-                 sparse_bp=False, th=0.99):
+                 sparse_bp=False, ena_schedule =False, n_banks = 8, sched_th=4, th=0.99):
         super().__init__()
         self.num_heads = num_heads
         head_dim = dim // num_heads
         self.scale = head_dim ** -0.5
+
+        self.n_banks = n_banks
+        self.sched_th = sched_th
 
         self.threshold = th
         self.gt = SparseGreaterThan if sparse_bp else GreaterThan
@@ -160,6 +164,7 @@ class PGAttention(nn.Module):
         self.quantize_a = TorchQuantize(abits)
         self.quantize_MSB = TorchQuantize(pgabits)
         self.greaterThan = GreaterThan.apply
+        self.ena_schedule = ena_schedule
 
         self.num_out = 0
         """ number of output features computed at high precision """
@@ -178,13 +183,34 @@ class PGAttention(nn.Module):
         # attn_msb = self.quantize_noise(attn_msb)
         attn_msb = attn_msb.softmax(dim=-1)
         mask = self.gt.apply(attn_msb, self.threshold)
+        msb_mask = torch.zeros_like(mask)
 
         #Manipulate the mask according our scheduling scheme
-        if not self.training:
+        if not self.training and self.ena_shedule:
+            #Attention Mask Shape [batch, head, token, token]
+            sched_mask_split = torch.tensor_split(mask, math.ceil(mask.shape[2]//self.n_banks), dim=2)
+            sched_msb_mask_split = torch.tensor_split(mask, math.ceil(mask.shape[2]//self.n_banks), dim=2)
+            #Then we get a list of VIEWS
+            for (split, msb_split) in zip(sched_mask_split, sched_msb_mask_split):
+                iss_order = split.cumsum(dim=3)        #We get a cumulative sum, we then should apply it to the non-zero position of the original tensor.
+                iss_order[split==0] = 0                #Only those edge values are valid
+                for idx in reversed(range(int(torch.max(iss_order).item()))):
+                    #[batch, head]
+                    indicator = torch.sum(iss_order == idx, dim=(2, 3))
+                    sel_ = (indicator < self.sched_th).unsqueeze(2).unsqueeze(3).expand(-1, -1, split.shape[2], split.shape[3])
+                    sel_order_slices = iss_order[sel_]
+                    sel_mask_slices = split[sel_]
+                    sel_msb_mask_slices = msb_split[sel_]
+                    sel_mask_slices[sel_order_slices==idx] = 0
+                    sel_msb_mask_slices[sel_order_slices==idx] = 1
+
+                    #Early Exit to reduce time, all requires schedule have been reviewed
+                    if torch.sum(indicator) == sel_.numel() * split.shape[2]:
+                        break
 
 
         attn = (q @ k.transpose(-2, -1)) * self.scale
-        attn = attn * mask
+        attn = attn * mask + attn_msb * msb_mask if self.ena_schedule else 0
         attn = attn.softmax(dim=-1)
         attn = self.attn_drop(attn)
         attn = self.quantize_a(attn)

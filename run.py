@@ -4,6 +4,9 @@ import os
 
 #FIX BUG
 os.environ['MKL_SERVICE_FORCE_INTEL'] = '1'
+import torch.multiprocessing
+torch.multiprocessing.set_sharing_strategy('file_system')
+
 
 parser = argparse.ArgumentParser(description='Training Config', add_help=True)
 parser.add_argument('-c', '--config', default=None, type=str,

@@ -46,6 +46,7 @@ class Inspector:
         # Resume Checkpoint
         self.config.Trainer.start_epoch = 0
         if self.config.Experiment.resume:
+            self.cmd_logger.info("Loading Checkpoint from {0}".format(self.checkpoint_path))
             self.config.Trainer.start_epoch = resume_checkpoint(self.model, self.checkpoint_path,
                                                                 optimizer=None, loss_scaler=None, log_info=True)
 

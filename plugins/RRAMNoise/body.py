@@ -107,8 +107,8 @@ class rramNoise(Plugin):
         self.sigma = sigma
         self.act = act
         self.weight = weight
-        self.high_res = high_res
-        self.low_res = low_res
+        self.high_cond = 1.0/high_res
+        self.low_cond = 1.0/low_res
         self.eval_only = eval_only
         self.quant = TorchRoundToBits(bits)
 
@@ -127,18 +127,17 @@ class rramNoise(Plugin):
     # We use model creation hook here for loading the checkpoint after creating the model
     def modelCreationHook(self, model):
         #Build a forward hook for adding noise
-        def _activation_noise_hook(module, input):
-            return self._generate_noise(input[0])
+        def _activation_noise_hook(module, input, output):
+            return self._generate_noise(output, quant_only = not self.act)
 
         #Add noise to weight if we only perform evaluation
         if self.eval_only:
-            if self.weight:
-                for n, m in model.named_parameters():
-                    m.data = self._generate_noise(m)
-            if self.act:
-                for n, m in model.named_modules():
-                    if isinstance(m, (torch.nn.Conv2d or torch.nn.Linear)):
-                        m.register_forward_pre_hook(_activation_noise_hook)
+            for n, m in model.named_parameters():
+                m.data = self._generate_noise(m, quant_only = not self.weight)
+                
+            for n, m in model.named_modules():
+                if isinstance(m, (torch.nn.Conv2d, torch.nn.Linear)):
+                    m.register_forward_hook(_activation_noise_hook)
             
     def evalIterHook(self, model, iter_id, logger=None):
         pass
@@ -147,17 +146,20 @@ class rramNoise(Plugin):
     def evalTailHook(self, model, epoch_id=None, logger=None):
         pass
 
-    def _generate_noise(self, val):
+    def _generate_noise(self, val, quant_only=False):
         # Normalize the input value
-        self.quant(val)
+        val = self.quant(val)
+        if quant_only:
+            return val
         fmax = torch.max(val)
         fmin = torch.min(val)
-        res = ((val - fmin) / (fmax - fmin)) * (self.high_res - self.low_res) + self.low_res
-        dist = torch.normal(0, self.sigma, res.size()).to(res.device)
-        noisy = torch.exp(dist) * res
-        res_back = ((noisy - self.low_res) / (self.high_res - self.low_res)) * (fmax - fmin) + fmin
-        self.quant(res_back)
-        return res_back
+        cond = ((val-fmin) / (fmax - fmin)) * (self.high_cond - self.low_cond) + self.low_cond
+        dist = torch.normal(0, self.sigma, cond.size()).to(cond.device)
+        noisy = (1+dist) * cond
+        #self.quant(noisy)
+        val_back = ((noisy - self.low_cond) / (self.high_cond - self.low_cond)) * (fmax - fmin) + fmin
+        #self.quant(res_back)
+        return val_back
 
 
 

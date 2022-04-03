@@ -1,6 +1,6 @@
 #Following the example script of timm library
 Experiment:
-  exp_id:             deit_tiny_8-4-4-0.7           #Experiment Name
+  exp_id:             deit_tiny_8-8-4-0.9           #Experiment Name
   path:               ./checkpoint #Path to save Experiment File, will store in "path/exp_id"
   checkpoint_hist:    10            #Number of checkpoints to keep
   dist:               True         #Start with dist launcher
@@ -45,5 +45,8 @@ Plugins:
     wbits:      8
     abits:      8
     pgabits:    4
-    threshold:  0.01
+    n_banks:    8
+    sched_th:   4
+    ena_schedule: False
+    threshold:  0.9
     sparse_bp:  False

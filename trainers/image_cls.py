@@ -171,10 +171,18 @@ class imgCls(Trainer):
             self.cmd_logger.debug("Iteration: {0}".format(batch_idx))
             last_batch = batch_idx == last_idx
             data_time_m.update(time.time() - end)
+            
             if not self.config.Trainer.prefetcher:
                 input, target = input.to(self.device), target.to(self.device)
                 if self.train_loader.mixup_fn is not None:
                     input, target = self.train_loader.mixup_fn(input, target)
+                    
+            if target.shape[1]>1:   #If using mixup
+                acc_target = torch.clone(target).argmax(dim=1)
+                #Extract the label from mixup version
+            else:
+                acc_target = target
+
             if self.config.Experiment.channel_last:
                 input = input.contiguous(memory_format=torch.channels_last)
 
@@ -185,7 +193,7 @@ class imgCls(Trainer):
                 output = model(input)
                 loss = self.train_loss(output, target)
 
-            acc1, acc5 = accuracy(output, target, topk=(1, 5))
+            acc1, acc5 = accuracy(output, acc_target, topk=(1, 5))
 
             if not self.config.Experiment.dist:
                 losses_m.update(loss.item(), input.size(0))

@@ -44,5 +44,6 @@ Plugins:
     high_res:   1.0e+7
     low_res:    10.0
     weight:     False
+    sigma:      0.05
     act:        True
     eval_only:  True

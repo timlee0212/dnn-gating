@@ -1,6 +1,6 @@
 #Following the example script of timm library
 Experiment:
-  exp_id:             deit_small_8-4-4-0.7           #Experiment Name
+  exp_id:             deit_small_8-8-4-0.01_rem          #Experiment Name
   path:               ./checkpoint #Path to save Experiment File, will store in "path/exp_id"
   checkpoint_hist:    10            #Number of checkpoints to keep
   dist:               True         #Start with dist launcher
@@ -36,6 +36,19 @@ Data:
   input_size:         [3, 224, 224]
   augs:               #All augmentation options
     autoaug: original
+    random_earse:
+      reprob:         0.25
+      remode:         pixel
+      recount:        1
+      resplit:        False
+    mixup:
+      mixup_alpha:    0.8
+      cutmix_alpha:   1.0
+      cutmix_minmax:  null
+      mixup_prob:     1.0
+      mixup_switch_prob:  0.5
+      mixup_mode:     batch
+      mixup_off_epoch: 0
 
 Plugins:
 -

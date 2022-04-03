@@ -54,7 +54,7 @@ Trainer:
     lr_cycle_decay: 0.5
     lr_cycle_limit: 1
     lr_k_decay:     1.0
-    warmup_lr:      0.0001
+    warmup_lr:      1.0e-6
     min_lr:         1.0e-6
     decay_epochs:   100
     warmup_epochs:  3

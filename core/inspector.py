@@ -51,7 +51,7 @@ class Inspector:
                                                                 optimizer=None, loss_scaler=None, log_info=True)
 
     @classmethod
-    def from_folder(cls, folder):
+    def from_folder(cls, folder, **kwargs):
         """
         Resume an experiment from a predefined folder
         """
@@ -60,6 +60,9 @@ class Inspector:
         config.Experiment.resume = True
         #Config validation batchsize so that it can fit into the GPU mem
         config.Trainer.val_batch_size = config.Trainer.val_batch_size / len(config.Experiment.gpu_ids)
+        #Additional Configs from subclass, currently we only support one level of attributes
+        for (key, val) in kwargs.items():
+            config.__setattr__(key, val)
         return cls(config)
 
     def run(self):

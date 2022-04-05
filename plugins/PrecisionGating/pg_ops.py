@@ -147,6 +147,7 @@ class PGAttention(nn.Module):
     def __init__(self, dim, num_heads=8, qkv_bias=False, attn_drop=0., proj_drop=0., wbits=8, abits=8, pgabits=4,
                  sparse_bp=False, ena_schedule =False, n_banks = 8, sched_th=4, th=0.99):
         super().__init__()
+        self.mask = None
         self.num_heads = num_heads
         head_dim = dim // num_heads
         self.scale = head_dim ** -0.5
@@ -184,6 +185,7 @@ class PGAttention(nn.Module):
         attn_msb = attn_msb.softmax(dim=-1)
         mask = self.gt.apply(attn_msb, self.threshold)
         msb_mask = torch.zeros_like(mask)
+        self.mask = mask
 
         #Manipulate the mask according our scheduling scheme
         if not self.training and self.ena_schedule:

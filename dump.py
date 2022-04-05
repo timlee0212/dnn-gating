@@ -1,10 +1,13 @@
-from core import Inspector, Config
-import torch
-import logging
 import argparse
-from plugins.PrecisionGating.pg_ops import PGAttention
 import functools
-import os
+import logging
+
+import torch
+import numpy as np
+
+from core import Inspector, Config
+from plugins.PrecisionGating.pg_ops import PGAttention
+
 
 class Dumper(Inspector):
     def __init__(self, config):
@@ -22,7 +25,7 @@ class Dumper(Inspector):
     #Override the run function
     def run(self):
         self.trainer.evalModel(self.model, n_iter=1)
-        torch.save(self.layer_masks, self.path)
+        np.save(self.path, self.layer_masks.detach().cpu().numpy())
 
 
 parser = argparse.ArgumentParser(description='Training Config', add_help=True)

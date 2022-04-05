@@ -45,6 +45,10 @@ class precisionGating(Plugin):
     def modelCreationHook(self, model):
         replacePGModule(model, wbits=self.wbits, abits=self.abits, pgabits=self.pgabits,
                         th=self.threshold, sparse_bp=self.sparse_bp)
+        #Eliminate Distillation Head of levit
+        if hasattr(model, "head_dist"):
+            del model.head_dist
+            model.head_dist = None
 
         # Initilize counter for the sparsity
         for m, n in model.named_modules():

@@ -72,10 +72,10 @@ def replacePGModule(model, **kwargs):
             if len(n_parent._modules) == 0:
                 # Make sure the leaf node is a convolutioan operation
                 print("Replacing: ", layer_name)
-                if isinstance(n_parent, torch.nn.Conv2d):
+                if isinstance(n_parent, nn.Conv2d):
                     parent._modules[mkey] = PGConv2d.copyConv(n_parent, **kwargs)
-                elif isinstance(n_parent, torch.Linear):
-                    parent._modules[mkey] = QLinear.copyLinear(n_parent, kwargs['wbits'], kwargs['abits'])
+                elif isinstance(n_parent, nn.Linear):
+                    parent._modules[mkey] = QLinear.copyLinear(n_parent, wbits=kwargs['wbits'], abits=kwargs['abits'])
                 elif isinstance(n_parent, levit.Attention):
                     parent._modules[mkey] = PGAttentionLeVit.copyAttn(n_parent, **kwargs)
                 elif isinstance(n_parent, levit.AttentionSubsample):

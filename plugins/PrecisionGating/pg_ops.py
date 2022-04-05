@@ -139,7 +139,8 @@ class QLinear(nn.Linear):
                   linear.bias is not None, **kwargs)
         qln.weight.data.copy_(linear.weight)
         qln.weight_fp.data.copy_(linear.weight)
-        qln.bias.data.copy_(linear.bias)
+        if linear.bias is not None:
+            qln.bias.data.copy_(linear.bias)
         return qln
 
     def forward(self, input):
@@ -304,10 +305,7 @@ class PGAttentionLeVit(PGAttention, levit.Attention):
         mask = self.gt.apply(attn_msb, self.threshold)
         return mask
 
-# Special OPs for LeViT
-
-
-class PGAttentionLeVit(PGAttention, levit.Attention):
+class PGAttentionSubsampleLeVit(PGAttention, levit.AttentionSubsample):
     def __init__(self, in_dim, out_dim, key_dim, num_heads=8, attn_ratio=2, act_layer=None, resolution=14, resolution_=7, stride=2, use_conv=False, attn_drop=0, proj_drop=0, wbits=8, abits=8, pgabits=4, sparse_bp=False, th=0.99):
         PGAttention.__init__(in_dim, num_heads, False, attn_drop, proj_drop, wbits,
                              abits, pgabits, sparse_bp, th)

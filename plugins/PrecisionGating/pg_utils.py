@@ -42,7 +42,7 @@ def replaceConv(model, **kwargs):
 
 def replacePGModule(model, **kwargs):
     #Compatible mode using old replace function
-    if kwargs['old_rp']:
+    if "old_rp" in kwargs and kwargs['old_rp']:
         for name, subModule in model._modules.items():
             # print('module',name,'is a ',subModule,"has",len(subModule._modules),'submodules')
             if (len(subModule._modules) != 0):

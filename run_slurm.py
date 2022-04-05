@@ -47,7 +47,7 @@ if __name__=="__main__":
             logger.info("Launching experiment with slurm, Job ID: {0}, Assigned GPUs: {1}, GPU_IDS: {2}".format(os.environ["SLRUM_JOB_ID"], os.environ["SLURM_GPUS"], os.environ["CUDA_VISIBLE_DEVICES"]))
 
         #Update the GPU list based on the settings
-        config.Experiment.gpu_ids = [int(id) for id in os.environ["CUDA_VISIBLE_DEIVES"].split(',')]
+        config.Experiment.gpu_ids = [int(id) for id in os.environ["CUDA_VISIBLE_DEVICES"].split(',')]
 
         #Now we start the experiment
         if args.exp_path is None:

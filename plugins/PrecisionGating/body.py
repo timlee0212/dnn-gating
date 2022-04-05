@@ -43,11 +43,8 @@ class precisionGating(Plugin):
 
     # We use model creation hook here for loading the checkpoint after creating the model
     def modelCreationHook(self, model):
-        replaceConv(model, wbits=self.wbits, abits=self.abits, pgabits=self.pgabits,
-                    th=self.threshold, sparse_bp=self.sparse_bp, skip_layers=self.skip_layers)
         replacePGModule(model, wbits=self.wbits, abits=self.abits, pgabits=self.pgabits,
-                        th=self.threshold, sparse_bp=self.sparse_bp, n_banks = self.n_banks, 
-                        sched_th = self.sched_th, ena_schedule = self.ena_schedule)
+                        th=self.threshold, sparse_bp=self.sparse_bp)
 
         # Initilize counter for the sparsity
         for m, n in model.named_modules():

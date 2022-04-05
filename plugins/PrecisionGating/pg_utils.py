@@ -1,8 +1,8 @@
-from numpy import deprecate
 from timm.models.layers import Mlp
 from timm.models.vision_transformer import Attention
-from timm.models import levit
+
 from .pg_ops import *
+
 
 def replaceConv(model, **kwargs):
     """
@@ -41,7 +41,7 @@ def replaceConv(model, **kwargs):
 
 
 def replacePGModule(model, **kwargs):
-    #Compatible mode using old replace function
+    # Compatible mode using old replace function
     if "old_rp" in kwargs and kwargs['old_rp']:
         for name, subModule in model._modules.items():
             # print('module',name,'is a ',subModule,"has",len(subModule._modules),'submodules')
@@ -52,7 +52,9 @@ def replacePGModule(model, **kwargs):
                 if "old_rp" in kwargs:
                     kwargs.pop("old_rp")
                 attn = model._modules[name]
-                model._modules[name] =  PGAttention.copyAttn(attn, **kwargs)
+                model._modules[name] = PGAttention.copyAttn(attn, **kwargs)
+                # Urgh....
+                kwargs["old_rp"] = True
             elif isinstance(subModule, Mlp):
                 # TODO: Replace all FC layers?
                 # print(model._modules[name])
@@ -61,16 +63,18 @@ def replacePGModule(model, **kwargs):
                 mlp = model._modules[name]
                 mlp.fc1 = QLinear.copyLinear(mlp.fc1)
                 mlp.fc2 = QLinear.copyLinear(mlp.fc2)
+                # Ugly code... But we have to do this for compatbility
+                kwargs["old_rp"] = True
     else:
         if "old_rp" in kwargs:
             kwargs.pop("old_rp")
         # List all interested layers in the model
-        #Separate the layers to gaurantee the replacement order
+        # Separate the layers to gaurantee the replacement order
         conv_layers = []
         attn_layers = []
         linear_layers = []
 
-        #Special Processing
+        # Special Processing
         levit_layers = []
 
         for n, m in model.named_modules():
@@ -80,10 +84,10 @@ def replacePGModule(model, **kwargs):
                 attn_layers.append(n)
             elif isinstance(m, nn.Linear):
                 linear_layers.append(n)
-            #Porcess Special Ones
+            # Porcess Special Ones
             elif isinstance(m, (levit.Attention, levit.AttentionSubsample)):
                 levit_layers.append(n)
-        cand_layers = conv_layers +linear_layers +attn_layers + levit_layers
+        cand_layers = conv_layers + linear_layers + attn_layers + levit_layers
         for (layer_id, layer_name) in enumerate(cand_layers):
             # Get the strip path of each conv layer
             name_seq = layer_name.split(".")
@@ -98,7 +102,8 @@ def replacePGModule(model, **kwargs):
                     if isinstance(n_parent, nn.Conv2d):
                         parent._modules[mkey] = PGConv2d.copyConv(n_parent, **kwargs)
                     elif isinstance(n_parent, nn.Linear):
-                        parent._modules[mkey] = QLinear.copyLinear(n_parent, wbits=kwargs['wbits'], abits=kwargs['abits'])
+                        parent._modules[mkey] = QLinear.copyLinear(n_parent, wbits=kwargs['wbits'],
+                                                                   abits=kwargs['abits'])
                     elif isinstance(n_parent, levit.Attention):
                         parent._modules[mkey] = PGAttentionLeVit.copyAttn(n_parent, **kwargs)
                     elif isinstance(n_parent, levit.AttentionSubsample):
@@ -109,6 +114,3 @@ def replacePGModule(model, **kwargs):
                 else:
                     parent = n_parent
     return model
-
-
-

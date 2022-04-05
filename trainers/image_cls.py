@@ -135,7 +135,10 @@ class imgCls(Trainer):
                         'Acc@5: {top5.val:>7.4f} ({top5.avg:>7.4f})'.format(
                             log_name, batch_idx, last_idx, batch_time=batch_time_m,
                             loss=losses_m, top1=top1_m, top5=top5_m))
-
+                #Stop after certain iterations
+                if "n_iter" in kwargs.keys() and batch_idx>=kwargs["n_iter"]:
+                    self.cmd_logger.info("Stop evaluation in iteration {0} as directed!")
+                    break
         for plg in self.plugins:
             plg.evalTailHook(model, logger=self.logger,
                              epoch_id=None if 'epoch' not in kwargs.keys() else kwargs['epoch'])

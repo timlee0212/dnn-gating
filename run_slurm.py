@@ -31,7 +31,7 @@ if __name__=="__main__":
         Config(os.path.join(args.exp_path, "config.yaml")) 
 
     #Check if we need bootstrap
-    if "SLRUM_JOB_ID" not in os.environ:
+    if "SLURM_JOB_ID" not in os.environ:
         logger.info("Bootstraping with Slrum Commands")
         n_gpus = len(config.Experiment.gpu_ids)
         command = "srun --gres=gpu:{0} --ntasks-per-node={1} --cpus-per-task={1} python run_slurm.py {2}".format(n_gpus, n_gpus, n_gpus*8, " ".join(sys.argv[1:]))

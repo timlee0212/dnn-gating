@@ -26,6 +26,7 @@ if __name__=="__main__":
     assert args.config is not None or args.exp_path is not None
 
     logger = logging.getLogger("Launcher")
+    logger.setLevel(logging.INFO)
     config = Config(args.config) if args.config is not None else \
         Config(os.path.join(args.exp_path, "config.yaml")) 
 
@@ -33,25 +34,27 @@ if __name__=="__main__":
     if "SLRUM_JOB_ID" not in os.environ:
         logger.info("Bootstraping with Slrum Commands")
         n_gpus = len(config.Experiment.gpu_ids)
-        os.system("srun --gres=gpu:{0} --ntasks-per-node={1} --cpus-per-task={1} python run_slurm.py {2}".format(n_gpus, n_gpus, n_gpus*8, " ".join(sys.argv[1:])))
-
-    #Get info of the process from the environment
-    rank = int(os.environ["SLURM_PROCID"])
-    world_size = int(os.environ["SLURM_NTASKS"])
-    os.environ["WORLD_SIZE"] = str(world_size)
-    os.environ["LOCAL_RANK"] = str(rank)
-    if rank == 0:
-        logger.info("Launching experiment with slurm, Job ID: {0}, Assigned GPUs: {1}, GPU_IDS: {2}".format(os.environ["SLRUM_JOB_ID"], os.environ["SLURM_GPUS"], os.environ["CUDA_VISIBLE_DEVICES"]))
-
-    #Update the GPU list based on the settings
-    config.Experiment.gpu_ids = [int(id) for id in os.environ["CUDA_VISIBLE_DEIVES"].split(',')]
-
-    #Now we start the experiment
-    if args.exp_path is None:
-        exp = Experiment(config)
+        command = "srun --gres=gpu:{0} --ntasks-per-node={1} --cpus-per-task={1} python run_slurm.py {2}".format(n_gpus, n_gpus, n_gpus*8, " ".join(sys.argv[1:]))
+        logger.info(command)
+        os.system(command)
     else:
-        exp = Experiment.from_folder(args.exp_path, args.new_path, args.resume)
-    exp.run()
+        #Get info of the process from the environment
+        rank = int(os.environ["SLURM_PROCID"])
+        world_size = int(os.environ["SLURM_NTASKS"])
+        os.environ["WORLD_SIZE"] = str(world_size)
+        os.environ["LOCAL_RANK"] = str(rank)
+        if rank == 0:
+            logger.info("Launching experiment with slurm, Job ID: {0}, Assigned GPUs: {1}, GPU_IDS: {2}".format(os.environ["SLRUM_JOB_ID"], os.environ["SLURM_GPUS"], os.environ["CUDA_VISIBLE_DEVICES"]))
+
+        #Update the GPU list based on the settings
+        config.Experiment.gpu_ids = [int(id) for id in os.environ["CUDA_VISIBLE_DEIVES"].split(',')]
+
+        #Now we start the experiment
+        if args.exp_path is None:
+            exp = Experiment(config)
+        else:
+            exp = Experiment.from_folder(args.exp_path, args.new_path, args.resume)
+        exp.run()
 
 
 

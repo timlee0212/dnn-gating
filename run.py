@@ -17,7 +17,6 @@ parser.add_argument('-n', '--new-path', default=None, type=str,
                     help='YAML config file specifying arguments')
 parser.add_argument('-r', '--resume', default=True, action='store_true',
                     help='Resume from previous experiment ')
-
 if __name__=="__main__":
     args = parser.parse_args()
     assert args.config is not None or args.exp_path is not None

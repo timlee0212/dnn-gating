@@ -33,7 +33,7 @@ def replaceConv(model, **kwargs):
                 # Make sure the leaf node is a convolutioan operation
                 assert (isinstance(n_parent, torch.nn.Conv2d))
                 print("Replacing: ", layer_name)
-                parent._modules[mkey] = PGConv2d.copy_conv(n_parent, **kwargs)
+                parent._modules[mkey] = PGConv2d.copyConv(n_parent, **kwargs)
                 del n_parent
             else:
                 parent = n_parent
@@ -48,26 +48,10 @@ def replacePGModule(model, **kwargs):
         if isinstance(subModule, Attention):
             # print(model._modules[name])
             attn = model._modules[name]
-            pgattn = PGAttention(attn.qkv.in_features, attn.num_heads, attn.qkv.bias is not None, **kwargs)
-            pgattn.qkv.weight.data.copy_(attn.qkv.weight)
-            pgattn.qkv.weight_fp.data.copy_(attn.qkv.weight)
-            pgattn.qkv.bias.data.copy_(attn.qkv.bias)
-            pgattn.proj.weight.data.copy_(attn.proj.weight)
-            pgattn.proj.weight_fp.data.copy_(attn.proj.weight)
-            pgattn.proj.bias.data.copy_(attn.proj.bias)
-            model._modules[name] = pgattn
+            model._modules[name] =  PGAttention.copyAttn(attn, **kwargs)
         elif isinstance(subModule, Mlp):
+            # TODO: Replace all FC layers?
             # print(model._modules[name])
             mlp = model._modules[name]
-            fc1 = QLinear(mlp.fc1.in_features, mlp.fc1.out_features, mlp.fc1.bias is not None, kwargs['wbits'],
-                          kwargs['abits'])
-            fc1.weight.data.copy_(mlp.fc1.weight)
-            fc1.weight_fp.data.copy_(mlp.fc1.weight)
-            fc1.bias.data.copy_(mlp.fc1.bias)
-            mlp.fc1 = fc1
-            fc2 = QLinear(mlp.fc2.in_features, mlp.fc2.out_features, mlp.fc2.bias is not None, kwargs['wbits'],
-                          kwargs['abits'])
-            fc2.weight.data.copy_(mlp.fc2.weight)
-            fc2.weight_fp.data.copy_(mlp.fc2.weight)
-            fc2.bias.data.copy_(mlp.fc2.bias)
-            mlp.fc2 = fc2
+            mlp.fc1 = QLinear.copyLinear(mlp.fc1)
+            mlp.fc2 = QLinear.copyLinear(mlp.fc2)

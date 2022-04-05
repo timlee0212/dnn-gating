@@ -332,7 +332,7 @@ class PGAttentionLeVit(PGAttention, levit.Attention):
             "in_channels" if leAttnSS.use_conv else "in_features")
         out_dim = leAttnSS.proj[1]['c'].__get_attr__(
             "out_channels" if leAttnSS.use_conv else "out_features")
-        )
+        
         pgattn=cls(in_dim, out_dim, leAttnSS.key_dim, leAttnSS.num_heads, leAttnSS.attn_ratio,
                    leAttnSS.proj[0].__class__, resolution = leAttnSS.resolution, resolution_ = leAttnSS.resolution_, stride = leAttnSS.stride, use_conv = leAttnSS.use_conv, **kwargs)
         # Now we copy the weights

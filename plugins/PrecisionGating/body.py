@@ -12,7 +12,7 @@ class precisionGating(Plugin):
         return "PrecisionGating"
 
     def __init__(self, wbits, abits, pgabits, threshold, n_banks = 8, sched_th = 4,
-                ena_schedule = False, sparse_bp=False, skip_layers=None):
+                ena_schedule = False, sparse_bp=False, skip_layers=None, old_rp = False):
         self.wbits = wbits
         self.abits = abits
         self.pgabits = pgabits
@@ -22,6 +22,7 @@ class precisionGating(Plugin):
         self.n_banks = n_banks
         self.sched_th = sched_th
         self.ena_schedule = ena_schedule
+        self.old_rp = old_rp
 
         self.cmd_logger = logging.getLogger("PG")
 
@@ -44,7 +45,7 @@ class precisionGating(Plugin):
     # We use model creation hook here for loading the checkpoint after creating the model
     def modelCreationHook(self, model):
         replacePGModule(model, wbits=self.wbits, abits=self.abits, pgabits=self.pgabits,
-                        th=self.threshold, sparse_bp=self.sparse_bp)
+                        th=self.threshold, sparse_bp=self.sparse_bp, old_rp = self.old_rp)
         #Eliminate Distillation Head of levit
         if hasattr(model, "head_dist"):
             del model.head_dist

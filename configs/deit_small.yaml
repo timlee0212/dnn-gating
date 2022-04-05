@@ -6,7 +6,7 @@ Experiment:
   dist:               True         #Start with dist launcher
   seed:               42
   debug:              False        #Enable debug output
-  gpu_ids:            [2,3]            #GPUs to use
+  gpu_ids:            [0, 1, 2,3]            #GPUs to use
 
 Model:
   model_name:       deit_small_patch16_224
@@ -32,7 +32,7 @@ Trainer:
 
 Data:
   name:               imagenet                  #Dataset Name
-  path:               /root/hostPublic/ImageNet #Dataset Path
+  path:               /localdata/ImageNet #Dataset Path
   input_size:         [3, 224, 224]
   augs:               #All augmentation options
     autoaug: original

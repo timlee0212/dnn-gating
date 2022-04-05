@@ -2,6 +2,7 @@ import argparse
 import logging
 from core import Config, Experiment
 import os, sys
+import subprocess
 
 #FIX BUG
 os.environ['MKL_SERVICE_FORCE_INTEL'] = '1'
@@ -24,7 +25,7 @@ parser.add_argument('-s', '--slurm-node', default="athena", type=str,
 if __name__=="__main__":
     args = parser.parse_args()
     assert args.config is not None or args.exp_path is not None
-
+    logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger("Launcher")
     logger.setLevel(logging.INFO)
     config = Config(args.config) if args.config is not None else \
@@ -34,17 +35,26 @@ if __name__=="__main__":
     if "SLURM_JOB_ID" not in os.environ:
         logger.info("Bootstraping with Slrum Commands")
         n_gpus = len(config.Experiment.gpu_ids)
-        command = "srun --gres=gpu:{0} --ntasks-per-node={1} --cpus-per-task={2} python run_slurm.py {3}".format(n_gpus, n_gpus, n_gpus*8, " ".join(sys.argv[1:]))
+        command = ("NCCL_P2P_DISABLE=1" if n_gpus>2 else "")  + "srun --gres=gpu:{0} --ntasks-per-node={1} --cpus-per-task={2} python run_slurm.py {3}".format(n_gpus, n_gpus, 8, " ".join(sys.argv[1:]))
         logger.info(command)
         os.system(command)
     else:
         #Get info of the process from the environment
         rank = int(os.environ["SLURM_PROCID"])
         world_size = int(os.environ["SLURM_NTASKS"])
+        node_list = os.environ["SLURM_NODELIST"]
+        addr = subprocess.getoutput(f"scontrol show hostname {node_list} | head -n1")
+
+        if "MASTER_PORT" not in os.environ:
+            os.environ["MASTER_PORT"] = "29500"
+        if "MASTER_ADDR" not in os.environ:
+            os.environ["MASTER_ADDR"] = addr
+
         os.environ["WORLD_SIZE"] = str(world_size)
         os.environ["LOCAL_RANK"] = str(rank)
+        os.environ["RANK"] = str(rank)
         if rank == 0:
-            logger.info("Launching experiment with slurm, Job ID: {0}, Assigned GPUs: {1}, GPU_IDS: {2}".format(os.environ["SLRUM_JOB_ID"], os.environ["SLURM_GPUS"], os.environ["CUDA_VISIBLE_DEVICES"]))
+            logger.info("Launching experiment with slurm, Job ID: {0}, Assigned GPUs: {1}, GPU_IDS: {2}".format(os.environ["SLURM_JOB_ID"], len(os.environ["SLURM_STEP_GPUS"].split(",")), os.environ["CUDA_VISIBLE_DEVICES"]))
 
         #Update the GPU list based on the settings
         config.Experiment.gpu_ids = [int(id) for id in os.environ["CUDA_VISIBLE_DEVICES"].split(',')]

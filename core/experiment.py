@@ -2,7 +2,6 @@ import datetime
 import logging
 import os
 import shutil
-from joblib import Parallel
 
 import numpy as np
 import torch
@@ -146,6 +145,7 @@ class Experiment:
         if self.config.Experiment.dist:
             self.model = torch.nn.parallel.distributed.DistributedDataParallel(self.model,
                                                                                device_ids=[self.local_rank, ])
+        self.cmd_logger.debug(self.model.__str__())
 
     def _init_data(self):
         data_config = resolve_data_config(self.config.Data.__dict__, model=self.model,

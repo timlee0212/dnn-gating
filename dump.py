@@ -3,6 +3,7 @@ import torch
 import logging
 import argparse
 from plugins.PrecisionGating.pg_ops import PGAttention
+import functools
 import os
 
 class Dumper(Inspector):
@@ -12,11 +13,11 @@ class Dumper(Inspector):
         self.path = config.dump_path
         #Manipulate models to regiser hook
         #The hook is defined inside the class to write layer masks
-        def _dump_mask(module, input, output):
-            self.layer_masks[module.name] = module.mask
+        def _dump_mask(module, input, output, name):
+            self.layer_masks[name] = module.mask
         for n, m in self.model.named_modules():
             if isinstance(m, PGAttention):
-                m.register_forward_hook(_dump_mask)
+                m.register_forward_hook(functools.partial(_dump_mask, name=n))
 
     #Override the run function
     def run(self):

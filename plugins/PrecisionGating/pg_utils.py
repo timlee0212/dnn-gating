@@ -49,15 +49,21 @@ def replacePGModule(model, **kwargs):
                 replacePGModule(subModule, **kwargs)
             if isinstance(subModule, Attention):
                 # print(model._modules[name])
+                if "old_rp" in kwargs:
+                    kwargs.pop("old_rp")
                 attn = model._modules[name]
                 model._modules[name] =  PGAttention.copyAttn(attn, **kwargs)
             elif isinstance(subModule, Mlp):
                 # TODO: Replace all FC layers?
                 # print(model._modules[name])
+                if "old_rp" in kwargs:
+                    kwargs.pop("old_rp")
                 mlp = model._modules[name]
                 mlp.fc1 = QLinear.copyLinear(mlp.fc1)
                 mlp.fc2 = QLinear.copyLinear(mlp.fc2)
     else:
+        if "old_rp" in kwargs:
+            kwargs.pop("old_rp")
         # List all interested layers in the model
         #Separate the layers to gaurantee the replacement order
         conv_layers = []

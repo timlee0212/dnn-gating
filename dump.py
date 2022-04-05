@@ -17,7 +17,8 @@ class Dumper(Inspector):
         #Manipulate models to regiser hook
         #The hook is defined inside the class to write layer masks
         def _dump_mask(module, input, output, name):
-            self.layer_masks[name] = module.mask
+            #Convert to bool type to save space
+            self.layer_masks[name] = module.mask.detach().cpu().numpy().astype(bool)
         for n, m in self.model.named_modules():
             if isinstance(m, PGAttention):
                 m.register_forward_hook(functools.partial(_dump_mask, name=n))
@@ -25,7 +26,7 @@ class Dumper(Inspector):
     #Override the run function
     def run(self):
         self.trainer.evalModel(self.model, n_iter=1)
-        np.save(self.path, self.layer_masks.detach().cpu().numpy())
+        np.save(self.path, self.layer_masks)
 
 
 parser = argparse.ArgumentParser(description='Training Config', add_help=True)

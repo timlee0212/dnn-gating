@@ -90,7 +90,7 @@ def replacePGModule(model, **kwargs):
             # Porcess Special Ones
             elif isinstance(m, (levit.Attention, levit.AttentionSubsample)):
                 levit_layers.append(n)
-            elif isinstance(m, pvt_layers):
+            elif isinstance(m, pvt.Attention):
                 pvt_layers.append(n)
         cand_layers = conv_layers + linear_layers + attn_layers + levit_layers + pvt_layers
 

@@ -55,3 +55,4 @@ Plugins:
     abits:      8
     pgabits:    4
     threshold:  0.01
+    old_rp: True

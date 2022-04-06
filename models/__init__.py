@@ -26,6 +26,7 @@ if not os.path.exists(ckpt_folder):
     os.mkdir(ckpt_folder)
 for name, url in pretrain_weight_list.items():
     if not os.path.exists(os.path.join(ckpt_folder, name + ".pth")):
+        print("Downloading pretrained weight from:", url)
         r = requests.get(url, allow_redirects=True)
         filename = getFilename_fromCd(r.headers.get('content-disposition'))
         open(os.path.join(ckpt_folder, filename), 'wb').write(r.content)

@@ -89,7 +89,7 @@ def replacePGModule(model, **kwargs):
                 levit_layers.append(n)
         cand_layers = conv_layers + linear_layers + attn_layers
         if len(levit_layers)>0:
-            cand_layers = levit
+            cand_layers = levit_layers
         for (layer_id, layer_name) in enumerate(cand_layers):
             # Get the strip path of each conv layer
             name_seq = layer_name.split(".")

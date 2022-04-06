@@ -274,7 +274,7 @@ class PGAttentionLeVit(levit.Attention):
         if self.use_conv:
             B, C, H, W = x.shape
             qkv = self.quantize_a(self.qkv(x).view(
-                B, self.num_heads, -1, H * W)).split([self.key_dim, self.key_dim, self.d], dim=2)
+                B, self.num_heads, -1, H * W).split([self.key_dim, self.key_dim, self.d], dim=2))
             q, k, v = qkv[0], qkv[1], qkv[2]
             self.mask = self._gen_mask(q, k)
 
@@ -285,9 +285,8 @@ class PGAttentionLeVit(levit.Attention):
             x = (v @ attn.transpose(-2, -1)).view(B, -1, H, W)
         else:
             B, N, C = x.shape
-            qkv = self.quantize_a(self.qkv(x))
-            q, k, v = qkv.view(
-                B, N, self.num_heads, -1).split([self.key_dim, self.key_dim, self.d], dim=3)
+            q, k, v = self.quantize_a(self.qkv(x).view(
+                B, N, self.num_heads, -1).split([self.key_dim, self.key_dim, self.d], dim=3))
             q = q.permute(0, 2, 1, 3)
             k = k.permute(0, 2, 1, 3)
             v = v.permute(0, 2, 1, 3)
@@ -372,10 +371,10 @@ class PGAttentionSubsampleLeVit(levit.AttentionSubsample):
         if self.use_conv:
             B, C, H, W=x.shape
             kv=self.quantize_a(self.kv(x).view(
-                B, self.num_heads, -1, H * W)).split([self.key_dim, self.d], dim = 2)
+                B, self.num_heads, -1, H * W).split([self.key_dim, self.d], dim = 2))
             k, v=kv[0], kv[1]
-            q=self.quantize_a(self.q(x)).view(
-                B, self.num_heads, self.key_dim, self.resolution_2)
+            q=self.quantize_a(self.q(x).view(
+                B, self.num_heads, self.key_dim, self.resolution_2))
             self.mask=self._gen_mask(q, k)
 
             attn=(q.transpose(-2, -1) @ k) * self.scale + \
@@ -386,11 +385,11 @@ class PGAttentionSubsampleLeVit(levit.AttentionSubsample):
                1, self.resolution_, self.resolution_)
         else:
             B, N, C=x.shape
-            k, v= self.quantize_a(self.kv(x)).view(B, N, self.num_heads, -1).split([self.key_dim, self.d], dim = 3)
+            k, v= self.quantize_a(self.kv(x).view(B, N, self.num_heads, -1).split([self.key_dim, self.d], dim = 3))
             k=k.permute(0, 2, 1, 3)
             v=v.permute(0, 2, 1, 3)
-            q=self.quantize_a(self.q(x)).view(
-                B, self.resolution_2, self.num_heads, self.key_dim).permute(0, 2, 1, 3)
+            q=self.quantize_a(self.q(x).view(
+                B, self.resolution_2, self.num_heads, self.key_dim).permute(0, 2, 1, 3))
             self.mask=self._gen_mask(q, k)
 
             attn=q @ k.transpose(-2, -1) * self.scale + \

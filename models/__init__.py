@@ -21,7 +21,7 @@ pretrain_weight_list = {
     "pvt_medium": "https://github.com/whai362/PVT/releases/download/v2/pvt_medium.pth",
     "pvt_large": "https://github.com/whai362/PVT/releases/download/v2/pvt_large.pth"
 }
-ckpt_folder = os.path.join(os.path.abspath(__file__),".." ,"_ckpt")
+ckpt_folder = os.path.abspath(os.path.join(os.path.abspath(__file__),".." ,"_ckpt"))
 if not os.path.exists(ckpt_folder):
     os.mkdir(ckpt_folder)
 for name, url in pretrain_weight_list.items():

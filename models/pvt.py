@@ -253,7 +253,7 @@ def _conv_filter(state_dict, patch_size=16):
 
 def _load_ckpt(model, name):
     import os
-    ckpt_folder = os.path.join(os.path.abspath(__file__), "..", "_ckpt")
+    ckpt_folder = os.path.abspath(os.path.join(os.path.abspath(__file__), "..", "_ckpt"))
     model.load_state_dict(torch.load(os.path.join(ckpt_folder, name +".pth")))
     print("Loading Pretrained Weight from", os.path.join(ckpt_folder, name +".pth"))
 

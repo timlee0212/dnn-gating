@@ -19,14 +19,6 @@ class Experiment:
     def __init__(self, config):
         self.config = config
 
-        if not os.path.exists(config.Experiment.path):
-            os.mkdir(config.Experiment.path)
-        if not os.path.exists(os.path.join(config.Experiment.path, config.Experiment.exp_id)):
-            os.mkdir(os.path.join(config.Experiment.path,
-                     config.Experiment.exp_id))
-        if not os.path.exists(os.path.join(config.Experiment.path, "config.yaml")):
-            yaml.safe_dump(config.config_dict,
-                           open(os.path.join(config.Experiment.path, config.Experiment.exp_id, "config.yaml"), 'w'))
         self.checkpoint_path = os.path.join(
             config.Experiment.path, config.Experiment.exp_id, "ckpt")
 
@@ -67,9 +59,19 @@ class Experiment:
             self.device = "cpu" if self.config.Experiment.gpu_ids is None else "cuda"
             os.environ["CUDA_VISIBLE_DEVICES"] = str(
                 self.config.Experiment.gpu_ids[0])
-        if not os.path.exists(self.checkpoint_path):
-            if self.main_proc:
+
+        if self.main_proc:
+            if not os.path.exists(config.Experiment.path):
+                os.mkdir(config.Experiment.path)
+            if not os.path.exists(os.path.join(config.Experiment.path, config.Experiment.exp_id)):
+                os.mkdir(os.path.join(config.Experiment.path,
+                                      config.Experiment.exp_id))
+            if not os.path.exists(os.path.join(config.Experiment.path, "config.yaml")):
+                yaml.safe_dump(config.config_dict,
+                               open(os.path.join(config.Experiment.path, config.Experiment.exp_id, "config.yaml"), 'w'))
+            if not os.path.exists(self.checkpoint_path):
                 os.mkdir(self.checkpoint_path)
+
         #Solve the failure of creating checkpoint folder issue
         if config.Experiment.dist:
             torch.distributed.barrier()

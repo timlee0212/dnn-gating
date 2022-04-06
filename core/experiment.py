@@ -31,7 +31,6 @@ class Experiment:
             config.Experiment.path, config.Experiment.exp_id, "ckpt")
 
         if not os.path.exists(self.checkpoint_path):
-            os.mkdir(self.checkpoint_path)
             self.config.Experiment.resume = False
         else:
             self.config.Experiment.resume = os.path.exists(os.path.join(self.checkpoint_path, "last.pth.tar"))
@@ -68,6 +67,12 @@ class Experiment:
             self.device = "cpu" if self.config.Experiment.gpu_ids is None else "cuda"
             os.environ["CUDA_VISIBLE_DEVICES"] = str(
                 self.config.Experiment.gpu_ids[0])
+        if not os.path.exists(self.checkpoint_path):
+            if self.main_proc:
+                os.mkdir(self.checkpoint_path)
+        #Solve the failure of creating checkpoint folder issue
+        if config.Experiment.dist:
+            torch.distributed.barrier()
 
         # Initilize Model
         self._init_model()

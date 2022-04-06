@@ -1,5 +1,7 @@
 import argparse
 import logging
+import random
+
 from core import Config, Experiment
 import os, sys
 import subprocess
@@ -45,8 +47,11 @@ if __name__=="__main__":
         node_list = os.environ["SLURM_NODELIST"]
         addr = subprocess.getoutput(f"scontrol show hostname {node_list} | head -n1")
 
+        #So that the process get the same port number through random number generation
+        random.seed(os.environ["SLURM_JOB_ID"])
+
         if "MASTER_PORT" not in os.environ:
-            os.environ["MASTER_PORT"] = "29500"
+            os.environ["MASTER_PORT"] = str(29500 + random.randint(1, 100))
         if "MASTER_ADDR" not in os.environ:
             os.environ["MASTER_ADDR"] = addr
 

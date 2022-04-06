@@ -1,10 +1,6 @@
-from pkg_resources import ResolutionError
-import torch
-import torch.nn as nn
-import math
+from timm.models import levit
 
 from .pg_modules import *
-from timm.models import levit
 
 
 class QConv2d(nn.Conv2d):
@@ -225,7 +221,8 @@ class PGAttention(nn.Module):
 
 # Special OPs for LeViT
 class PGAttentionLeVit(levit.Attention):
-    def __init__(self, dim, key_dim, num_heads, attn_ratio=4, act_layer=None, resolution=14, use_conv=False, wbits=8, abits=8, pgabits=4, sparse_bp=False, th=0.99):
+    def __init__(self, dim, key_dim, num_heads, attn_ratio=4, act_layer=None, resolution=14, use_conv=False, wbits=8,
+                 abits=8, pgabits=4, sparse_bp=False, th=0.99):
         super().__init__(dim, key_dim, num_heads, attn_ratio, act_layer, resolution, use_conv)
 
         self.threshold = th
@@ -239,9 +236,11 @@ class PGAttentionLeVit(levit.Attention):
 
         # Now we override some modules
         # This is hardcoded in the levit code, Caution possible changes for furutre version!
-        self.qkv.c = PGConv2d.copyConv(self.qkv.c, wbits=wbits, abits=abits, pgabits=pgabits, sparse_bp=sparse_bp, th=th) \
+        self.qkv.c = PGConv2d.copyConv(self.qkv.c, wbits=wbits, abits=abits, pgabits=pgabits, sparse_bp=sparse_bp,
+                                       th=th) \
             if self.use_conv else QLinear.copyLinear(self.qkv.c, wbits=wbits, abits=abits)
-        self.proj[1].c = PGConv2d.copyConv(self.proj[1].c, wbits=wbits, abits=abits, pgabits=pgabits, sparse_bp=sparse_bp, th=th) \
+        self.proj[1].c = PGConv2d.copyConv(self.proj[1].c, wbits=wbits, abits=abits, pgabits=pgabits,
+                                           sparse_bp=sparse_bp, th=th) \
             if self.use_conv else QLinear.copyLinear(self.proj[1].c, wbits=wbits, abits=abits)
 
     @classmethod
@@ -250,8 +249,8 @@ class PGAttentionLeVit(levit.Attention):
         pgattn = cls(dim, leAttn.key_dim, leAttn.num_heads, leAttn.attn_ratio,
                      leAttn.proj[0].__class__, use_conv=leAttn.use_conv, **kwargs)
         # Now we copy the weights
-        pgattn.attention_biases =  nn.Parameter(leAttn.attention_biases.clone())
-        #Recopy the buffer
+        pgattn.attention_biases = nn.Parameter(leAttn.attention_biases.clone())
+        # Recopy the buffer
         delattr(pgattn, "attention_bias_idxs")
         pgattn.register_buffer("attention_bias_idxs", leAttn.attention_bias_idxs.clone())
         pgattn.ab = leAttn.ab
@@ -260,7 +259,7 @@ class PGAttentionLeVit(levit.Attention):
         pgattn.proj[1].c = PGConv2d.copyConv(pgattn.proj[1].c, **kwargs) \
             if pgattn.use_conv else QLinear.copyLinear(pgattn.proj[1].c, wbits=kwargs['wbits'], abits=kwargs['abits'])
 
-        #Copy the weight of BNs
+        # Copy the weight of BNs
         pgattn.qkv.bn.weight.data.copy_(leAttn.qkv.bn.weight)
         pgattn.qkv.bn.bias.data.copy_(leAttn.qkv.bn.bias)
         pgattn.proj[1].bn.weight.data.copy_(leAttn.proj[1].bn.weight)
@@ -274,27 +273,27 @@ class PGAttentionLeVit(levit.Attention):
         if self.use_conv:
             B, C, H, W = x.shape
             qkv = self.quantize_a(self.qkv(x).view(
-                B, self.num_heads, -1, H * W).split([self.key_dim, self.key_dim, self.d], dim=2))
+                B, self.num_heads, -1, H * W)).split([self.key_dim, self.key_dim, self.d], dim=2)
             q, k, v = qkv[0], qkv[1], qkv[2]
             self.mask = self._gen_mask(q, k)
 
             attn = (q.transpose(-2, -1) @ k) * self.scale + \
-                self.get_attention_biases(x.device)
+                   self.get_attention_biases(x.device)
             attn = (attn * self.mask).softmax(dim=-1)
 
             x = (v @ attn.transpose(-2, -1)).view(B, -1, H, W)
         else:
             B, N, C = x.shape
             q, k, v = self.quantize_a(self.qkv(x).view(
-                B, N, self.num_heads, -1).split([self.key_dim, self.key_dim, self.d], dim=3))
+                B, N, self.num_heads, -1)).split([self.key_dim, self.key_dim, self.d], dim=3)
             q = q.permute(0, 2, 1, 3)
             k = k.permute(0, 2, 1, 3)
             v = v.permute(0, 2, 1, 3)
             self.mask = self._gen_mask(q, k)
 
             attn = q @ k.transpose(-2, -1) * self.scale + \
-                self.get_attention_biases(x.device)
-            attn = (attn*self.mask).softmax(dim=-1)
+                   self.get_attention_biases(x.device)
+            attn = (attn * self.mask).softmax(dim=-1)
 
             x = (attn @ v).transpose(1, 2).reshape(B, N, self.dh)
         x = self.proj(x)
@@ -311,8 +310,10 @@ class PGAttentionLeVit(levit.Attention):
         mask = self.gt.apply(attn_msb, self.threshold)
         return mask
 
+
 class PGAttentionSubsampleLeVit(levit.AttentionSubsample):
-    def __init__(self, in_dim, out_dim, key_dim, num_heads=8, attn_ratio=2, act_layer=None, resolution=14, resolution_=7, stride=2, use_conv=False, wbits=8, abits=8, pgabits=4, sparse_bp=False, th=0.99):
+    def __init__(self, in_dim, out_dim, key_dim, num_heads=8, attn_ratio=2, act_layer=None, resolution=14,
+                 resolution_=7, stride=2, use_conv=False, wbits=8, abits=8, pgabits=4, sparse_bp=False, th=0.99):
         super().__init__(
             in_dim, out_dim, key_dim, num_heads, attn_ratio, act_layer, stride, resolution, resolution_, use_conv)
 
@@ -329,10 +330,12 @@ class PGAttentionSubsampleLeVit(levit.AttentionSubsample):
         # This is hardcoded in the levit code, Caution possible changes for furutre version!
         self.kv.c = PGConv2d.copyConv(self.kv.c, wbits=wbits, abits=abits, pgabits=pgabits, sparse_bp=sparse_bp, th=th) \
             if self.use_conv else QLinear.copyLinear(self.kv.c, wbits=wbits, abits=abits)
-        self.q[1].c = PGConv2d.copyConv(self.q[1].c, wbits=wbits, abits=abits, pgabits=pgabits, sparse_bp=sparse_bp, th=th) \
+        self.q[1].c = PGConv2d.copyConv(self.q[1].c, wbits=wbits, abits=abits, pgabits=pgabits, sparse_bp=sparse_bp,
+                                        th=th) \
             if self.use_conv else QLinear.copyLinear(self.q[1].c, wbits=wbits, abits=abits)
 
-        self.proj[1].c = PGConv2d.copyConv(self.proj[1].c, wbits=wbits, abits=abits, pgabits=pgabits, sparse_bp=sparse_bp, th=th) \
+        self.proj[1].c = PGConv2d.copyConv(self.proj[1].c, wbits=wbits, abits=abits, pgabits=pgabits,
+                                           sparse_bp=sparse_bp, th=th) \
             if self.use_conv else QLinear.copyLinear(self.proj[1].c, wbits=wbits, abits=abits)
 
     @classmethod
@@ -341,20 +344,21 @@ class PGAttentionSubsampleLeVit(levit.AttentionSubsample):
         # The resolution is not used in any other coponents in the model
         in_dim = leAttnSS.kv.c.in_channels if leAttnSS.use_conv else leAttnSS.kv.c.in_features
         out_dim = leAttnSS.proj[1].c.out_channels if leAttnSS.use_conv else leAttnSS.proj[1].c.out_features
-        
-        pgattn=cls(in_dim, out_dim, leAttnSS.key_dim, leAttnSS.num_heads, leAttnSS.attn_ratio,
-                   leAttnSS.proj[0].__class__, resolution = leAttnSS.resolution, resolution_ = leAttnSS.resolution_, stride = leAttnSS.stride, use_conv = leAttnSS.use_conv, **kwargs)
+
+        pgattn = cls(in_dim, out_dim, leAttnSS.key_dim, leAttnSS.num_heads, leAttnSS.attn_ratio,
+                     leAttnSS.proj[0].__class__, resolution=leAttnSS.resolution, resolution_=leAttnSS.resolution_,
+                     stride=leAttnSS.stride, use_conv=leAttnSS.use_conv, **kwargs)
         # Now we copy the weights
         pgattn.attention_biases = nn.Parameter(leAttnSS.attention_biases.clone())
         delattr(pgattn, "attention_bias_idxs")
         pgattn.register_buffer("attention_bias_idxs", leAttnSS.attention_bias_idxs.clone())
-        pgattn.ab=leAttnSS.ab
-        pgattn.kv.c=PGConv2d.copyConv(pgattn.kv.c, **kwargs) \
-            if pgattn.use_conv else QLinear.copyLinear(pgattn.kv.c, wbits = kwargs['wbits'], abits = kwargs['abits'])
-        pgattn.q[1].c=PGConv2d.copyConv(pgattn.q[1].c, **kwargs) \
-            if pgattn.use_conv else QLinear.copyLinear(pgattn.q[1].c, wbits = kwargs['wbits'], abits = kwargs['abits'])
-        pgattn.proj[1].c=PGConv2d.copyConv(pgattn.proj[1].c, **kwargs) \
-            if pgattn.use_conv else QLinear.copyLinear(pgattn.proj[1].c, wbits = kwargs['wbits'], abits = kwargs['abits'])
+        pgattn.ab = leAttnSS.ab
+        pgattn.kv.c = PGConv2d.copyConv(pgattn.kv.c, **kwargs) \
+            if pgattn.use_conv else QLinear.copyLinear(pgattn.kv.c, wbits=kwargs['wbits'], abits=kwargs['abits'])
+        pgattn.q[1].c = PGConv2d.copyConv(pgattn.q[1].c, **kwargs) \
+            if pgattn.use_conv else QLinear.copyLinear(pgattn.q[1].c, wbits=kwargs['wbits'], abits=kwargs['abits'])
+        pgattn.proj[1].c = PGConv2d.copyConv(pgattn.proj[1].c, **kwargs) \
+            if pgattn.use_conv else QLinear.copyLinear(pgattn.proj[1].c, wbits=kwargs['wbits'], abits=kwargs['abits'])
 
         pgattn.kv.bn.weight.data.copy_(leAttnSS.kv.bn.weight)
         pgattn.kv.bn.bias.data.copy_(leAttnSS.kv.bn.bias)
@@ -369,44 +373,44 @@ class PGAttentionSubsampleLeVit(levit.AttentionSubsample):
 
     def forward(self, x):
         if self.use_conv:
-            B, C, H, W=x.shape
-            kv=self.quantize_a(self.kv(x).view(
-                B, self.num_heads, -1, H * W).split([self.key_dim, self.d], dim = 2))
-            k, v=kv[0], kv[1]
-            q=self.quantize_a(self.q(x).view(
+            B, C, H, W = x.shape
+            kv = self.quantize_a(self.kv(x).view(
+                B, self.num_heads, -1, H * W)).split([self.key_dim, self.d], dim=2)
+            k, v = kv[0], kv[1]
+            q = self.quantize_a(self.q(x).view(
                 B, self.num_heads, self.key_dim, self.resolution_2))
-            self.mask=self._gen_mask(q, k)
+            self.mask = self._gen_mask(q, k)
 
-            attn=(q.transpose(-2, -1) @ k) * self.scale + \
-                self.get_attention_biases(x.device)
-            attn=(attn * self.mask).softmax(dim = -1)
+            attn = (q.transpose(-2, -1) @ k) * self.scale + \
+                   self.get_attention_biases(x.device)
+            attn = (attn * self.mask).softmax(dim=-1)
 
-            x=(v @ attn.transpose(-2, -1)).reshape(B, - \
-               1, self.resolution_, self.resolution_)
+            x = (v @ attn.transpose(-2, -1)).reshape(B, - \
+                1, self.resolution_, self.resolution_)
         else:
-            B, N, C=x.shape
-            k, v= self.quantize_a(self.kv(x).view(B, N, self.num_heads, -1).split([self.key_dim, self.d], dim = 3))
-            k=k.permute(0, 2, 1, 3)
-            v=v.permute(0, 2, 1, 3)
-            q=self.quantize_a(self.q(x).view(
+            B, N, C = x.shape
+            k, v = self.quantize_a(self.kv(x).view(B, N, self.num_heads, -1)).split([self.key_dim, self.d], dim=3)
+            k = k.permute(0, 2, 1, 3)
+            v = v.permute(0, 2, 1, 3)
+            q = self.quantize_a(self.q(x).view(
                 B, self.resolution_2, self.num_heads, self.key_dim).permute(0, 2, 1, 3))
-            self.mask=self._gen_mask(q, k)
+            self.mask = self._gen_mask(q, k)
 
-            attn=q @ k.transpose(-2, -1) * self.scale + \
-                self.get_attention_biases(x.device)
-            attn=(attn*self.mask).softmax(dim = -1)
+            attn = q @ k.transpose(-2, -1) * self.scale + \
+                   self.get_attention_biases(x.device)
+            attn = (attn * self.mask).softmax(dim=-1)
 
-            x=(attn @ v).transpose(1, 2).reshape(B, -1, self.dh)
-        x=self.proj(x)
-        self.num_out=self.mask.numel()
-        self.num_high=torch.sum(self.mask).item()
+            x = (attn @ v).transpose(1, 2).reshape(B, -1, self.dh)
+        x = self.proj(x)
+        self.num_out = self.mask.numel()
+        self.num_high = torch.sum(self.mask).item()
         return x
 
     def _gen_mask(self, q, k):
-        q_msb=self.quantize_MSB(q)
-        k_msb=self.quantize_MSB(k)
-        attn_msb=(q_msb @ k_msb.transpose(-2, -1)) * self.scale
+        q_msb = self.quantize_MSB(q)
+        k_msb = self.quantize_MSB(k)
+        attn_msb = (q_msb @ k_msb.transpose(-2, -1)) * self.scale
         # attn_msb = self.quantize_noise(attn_msb)
-        attn_msb=attn_msb.softmax(dim = -1)
-        mask=self.gt.apply(attn_msb, self.threshold)
+        attn_msb = attn_msb.softmax(dim=-1)
+        mask = self.gt.apply(attn_msb, self.threshold)
         return mask

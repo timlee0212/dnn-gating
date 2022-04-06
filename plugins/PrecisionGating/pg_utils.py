@@ -131,7 +131,7 @@ def replacePGModule(model, **kwargs):
             elif layer_name in pvt_layers:
                 print("Replacing ", layer_name, " for PG PVT Attention Layer")
                 exec(
-                    "{target_module} = PGAttentionPVT({target_module}, **kwargs)".format(
+                    "{target_module} = PGAttentionPVT.copyAttn({target_module}, **kwargs)".format(
                         target_module=module_name))
             elif layer_name in conv_layers:
                 if "blocks" in layer_name:

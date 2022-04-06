@@ -107,7 +107,7 @@ def replacePGModule(model, **kwargs):
                     elif isinstance(n_parent, levit.Attention):
                         parent._modules[mkey] = PGAttentionLeVit.copyAttn(n_parent, **kwargs)
                     elif isinstance(n_parent, levit.AttentionSubsample):
-                        parent._modules[mkey] = PGAttentionLeVit.copyAttn(n_parent, **kwargs)
+                        parent._modules[mkey] = PGAttentionSubsampleLeVit.copyAttn(n_parent, **kwargs)
                     else:
                         raise ValueError("Unrecongnized Replace target {layer_name}!")
                     del n_parent

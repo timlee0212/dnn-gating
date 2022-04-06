@@ -21,7 +21,7 @@ class Experiment:
 
         self.checkpoint_path = os.path.join(
             config.Experiment.path, config.Experiment.exp_id, "ckpt")
-        #We have to probe the dist environment to avoid conflict during creating folders
+        # We have to probe the dist environment to avoid conflict during creating folders
 
         # Single process by default
         self.main_proc = True if not config.Experiment.dist else (int(os.environ['LOCAL_RANK']) == 0)
@@ -37,10 +37,6 @@ class Experiment:
                                open(os.path.join(config.Experiment.path, config.Experiment.exp_id, "config.yaml"), 'w'))
             if not os.path.exists(self.checkpoint_path):
                 os.mkdir(self.checkpoint_path)
-
-        #Solve the failure of creating checkpoint folder issue
-        if config.Experiment.dist:
-            torch.distributed.barrier()
 
         if not os.path.exists(self.checkpoint_path):
             self.config.Experiment.resume = False
@@ -62,8 +58,6 @@ class Experiment:
 
         self.cmd_logger = logging.getLogger("Experiment")
         self.cmd_logger.debug(self.config.config_dict)
-
-
 
         # Initilize plugins
         self._init_plugins()
@@ -97,7 +91,8 @@ class Experiment:
         if self.config.Experiment.resume:
             self.cmd_logger.debug(
                 "Loading Checkpoint from from {0}".format(self.checkpoint_path))
-            self.config.Trainer.start_epoch = resume_checkpoint(unwrap_model(self.model), os.path.join(self.checkpoint_path, "last.pth.tar"),
+            self.config.Trainer.start_epoch = resume_checkpoint(unwrap_model(self.model),
+                                                                os.path.join(self.checkpoint_path, "last.pth.tar"),
                                                                 optimizer=self.optimizer,
                                                                 loss_scaler=self.trainer.loss_scaler,
                                                                 log_info=self.main_proc)
@@ -119,6 +114,9 @@ class Experiment:
         """
         Run experiment based on the predefined configs
         """
+        # Sync before we start training
+        if self.config.Experiment.dist:
+            torch.distributed.barrier()
         self.trainer.trainModel(self.model)
 
     def _init_plugins(self):
@@ -145,13 +143,13 @@ class Experiment:
                 if self.main_proc:
                     self.cmd_logger.warning(
                         "Cannot find the required checkpoint path {0} for model"
-                        .format(self.config.Model.checkpoint_path))
+                            .format(self.config.Model.checkpoint_path))
 
         for plg in self.plugin_list:
             plg.modelManipHook(model)
 
         self.model.to(self.device, memory_format=torch.channels_last
-                      if self.config.Experiment.channel_last else torch.contiguous_format)
+        if self.config.Experiment.channel_last else torch.contiguous_format)
         if self.config.Experiment.dist:
             self.model = torch.nn.parallel.distributed.DistributedDataParallel(self.model,
                                                                                device_ids=[self.local_rank, ])
@@ -240,12 +238,13 @@ class Experiment:
             backend='nccl', init_method='env://')
 
         # Set visible devices for this process
-        #torch.cuda.set_device(torch.device("cuda", self.local_rank))
-        #Set avaliable GPUs
+        # torch.cuda.set_device(torch.device("cuda", self.local_rank))
+        # Set avaliable GPUs
         os.environ["CUDA_VISIBLE_DEVICES"] = str(self.config.Experiment.gpu_ids[self.local_rank])
 
         self.cmd_logger.info('Training in distributed mode with multiple processes, 1 GPU per process. Process {0}/{1}'
-                             '. Using GPU {2}.'.format(self.local_rank, torch.distributed.get_world_size(), os.environ["CUDA_VISIBLE_DEVICES"]))
+                             '. Using GPU {2}.'.format(self.local_rank, torch.distributed.get_world_size(),
+                                                       os.environ["CUDA_VISIBLE_DEVICES"]))
 
         # Deal with sync BN in the distributed setting
         if self.config.Experiment.sync_bn:

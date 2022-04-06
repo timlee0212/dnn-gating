@@ -21,6 +21,26 @@ class Experiment:
 
         self.checkpoint_path = os.path.join(
             config.Experiment.path, config.Experiment.exp_id, "ckpt")
+        #We have to probe the dist environment to avoid conflict during creating folders
+
+        # Single process by default
+        self.main_proc = True if not config.Experiment.dist else (int(os.environ['LOCAL_RANK']) == 0)
+
+        if self.main_proc:
+            if not os.path.exists(config.Experiment.path):
+                os.mkdir(config.Experiment.path)
+            if not os.path.exists(os.path.join(config.Experiment.path, config.Experiment.exp_id)):
+                os.mkdir(os.path.join(config.Experiment.path,
+                                      config.Experiment.exp_id))
+            if not os.path.exists(os.path.join(config.Experiment.path, "config.yaml")):
+                yaml.safe_dump(config.config_dict,
+                               open(os.path.join(config.Experiment.path, config.Experiment.exp_id, "config.yaml"), 'w'))
+            if not os.path.exists(self.checkpoint_path):
+                os.mkdir(self.checkpoint_path)
+
+        #Solve the failure of creating checkpoint folder issue
+        if config.Experiment.dist:
+            torch.distributed.barrier()
 
         if not os.path.exists(self.checkpoint_path):
             self.config.Experiment.resume = False
@@ -43,8 +63,7 @@ class Experiment:
         self.cmd_logger = logging.getLogger("Experiment")
         self.cmd_logger.debug(self.config.config_dict)
 
-        # Single process by default
-        self.main_proc = True
+
 
         # Initilize plugins
         self._init_plugins()
@@ -59,22 +78,6 @@ class Experiment:
             self.device = "cpu" if self.config.Experiment.gpu_ids is None else "cuda"
             os.environ["CUDA_VISIBLE_DEVICES"] = str(
                 self.config.Experiment.gpu_ids[0])
-
-        if self.main_proc:
-            if not os.path.exists(config.Experiment.path):
-                os.mkdir(config.Experiment.path)
-            if not os.path.exists(os.path.join(config.Experiment.path, config.Experiment.exp_id)):
-                os.mkdir(os.path.join(config.Experiment.path,
-                                      config.Experiment.exp_id))
-            if not os.path.exists(os.path.join(config.Experiment.path, "config.yaml")):
-                yaml.safe_dump(config.config_dict,
-                               open(os.path.join(config.Experiment.path, config.Experiment.exp_id, "config.yaml"), 'w'))
-            if not os.path.exists(self.checkpoint_path):
-                os.mkdir(self.checkpoint_path)
-
-        #Solve the failure of creating checkpoint folder issue
-        if config.Experiment.dist:
-            torch.distributed.barrier()
 
         # Initilize Model
         self._init_model()

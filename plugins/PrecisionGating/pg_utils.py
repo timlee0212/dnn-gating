@@ -87,32 +87,85 @@ def replacePGModule(model, **kwargs):
             # Porcess Special Ones
             elif isinstance(m, (levit.Attention, levit.AttentionSubsample)):
                 levit_layers.append(n)
-        cand_layers = conv_layers + linear_layers + attn_layers
-        if len(levit_layers)>0:
-            cand_layers = levit_layers
+        cand_layers = conv_layers + linear_layers + attn_layers + levit_layers
+
         for (layer_id, layer_name) in enumerate(cand_layers):
-            # Get the strip path of each conv layer
-            name_seq = layer_name.split(".")
-            # Use DFS to replace each conv model with PGConv
-            parent = model
-            for mkey in name_seq:
-                n_parent = parent._modules[mkey]
-                # Current module is a leaf node
-                if len(n_parent._modules) == 0:
-                    # Make sure the leaf node is a convolutioan operation
-                    print("Replacing: ", layer_name)
-                    if isinstance(n_parent, nn.Conv2d):
-                        parent._modules[mkey] = PGConv2d.copyConv(n_parent, **kwargs)
-                    elif isinstance(n_parent, nn.Linear):
-                        parent._modules[mkey] = QLinear.copyLinear(n_parent, wbits=kwargs['wbits'],
-                                                                   abits=kwargs['abits'])
-                    elif isinstance(n_parent, levit.Attention):
-                        parent._modules[mkey] = PGAttentionLeVit.copyAttn(n_parent, **kwargs)
-                    elif isinstance(n_parent, levit.AttentionSubsample):
-                        parent._modules[mkey] = PGAttentionSubsampleLeVit.copyAttn(n_parent, **kwargs)
-                    else:
-                        raise ValueError("Unrecongnized Replace target {layer_name}!")
-                    del n_parent
+            # Get the parent name of the module
+            parent_name = ".".join(layer_name.split(".")[:-1])
+            # First we check if the parent already in the candidate list to avoid duplicate the replacement process
+            dup_flag = False
+            for old_name in cand_layers:
+                if old_name in parent_name:
+                    dup_flag = True
+                    print("Layer {0} contains module {1}, skip current replacement!".format(old_name, layer_name))
+                    break
+
+            if dup_flag:
+                continue
+
+            if "blocks" in layer_name:  # The target module for gating
+                print("Replacing ", layer_name)
+                module_name = "model."+".".join([mkey if not mkey.isdigit() else ("["+ mkey + "]") for mkey in layer_name.split(".")])
+                module_name = module_name.replace(".[", "[")
+                print(module_name)
+                if layer_name in conv_layers:
+                    exec(
+                        "{target_module} = PGConv2d.copyConv({target_module}, **kwargs)".format(
+                            target_module=module_name))
+                elif layer_name in linear_layers:
+                    exec(
+                        "{target_module} = QLinear.copyLinear({target_module}, wbits=kwargs['wbits'], abits=kwargs['abits'])".format(
+                            target_module=module_name))
+                elif layer_name in attn_layers:
+                    exec(
+                        "{target_module} = PGAttention.copyAttn({target_module}, **kwargs)".format(
+                            target_module=module_name))
+                elif layer_name in levit_layers:
+                    exec('if isinstance({target_module}, levit.Attention):\n'
+                        '   {target_module} = PGAttentionLeVit.copyAttn({target_module}, **kwargs)\n'
+                        'elif isinstance({target_module}, levit.AttentionSubsample):\n'
+                        '   {target_module} = PGAttentionSubsampleLeVit.copyAttn({target_module}, **kwargs)'.format(
+                            target_module=module_name))
                 else:
-                    parent = n_parent
+                    raise ValueError("Unrecognized Layer {0}".format(layer_name))
+            else:  # Quantization Only
+                print("Quantizing ", layer_name)
+                module_name = "model." + ".".join(
+                    [mkey if not mkey.isdigit() else ("[" + mkey + "]") for mkey in layer_name.split(".")])
+                module_name = module_name.replace(".[", "[")
+                print(module_name)
+                if layer_name in conv_layers:
+                    exec("{target_module} = PGConv2d.copyConv({target_module}, wbits=kwargs['wbits'], abits=kwargs['abits'], pgabits=8, sparse_bp=False, th=0.)".format(
+                            target_module=module_name))
+                elif layer_name in linear_layers:
+                    exec(
+                        "{target_module} = QLinear.copyLinear({target_module}, wbits=kwargs['wbits'], abits=kwargs['abits'])".format(
+                            target_module=module_name))
+                else:
+                    raise ValueError("Unrecognized Layer {0}".format(layer_name))
+
+            # # Get the strip path of each conv layer
+            # name_seq = layer_name.split(".")
+            # # Use DFS to replace each conv model with PGConv
+            # parent = model
+            # for mkey in name_seq:
+            #     n_parent = parent._modules[mkey]
+            #     # Current module is a leaf node
+            #     if len(n_parent._modules) == 0:
+            #         # Make sure the leaf node is a convolutioan operation
+            #         print("Replacing: ", layer_name)
+            #         if isinstance(n_parent, nn.Conv2d):
+            #             parent._modules[mkey] = PGConv2d.copyConv(n_parent, **kwargs)
+            #         elif isinstance(n_parent, nn.Linear):
+            #             parent._modules[mkey] = QLinear.copyLinear(n_parent, wbits=kwargs['wbits'],
+            #                                                        abits=kwargs['abits'])
+            #         elif isinstance(n_parent, levit.Attention):
+            #             parent._modules[mkey] = PGAttentionLeVit.copyAttn(n_parent, **kwargs)
+            #         elif isinstance(n_parent, levit.AttentionSubsample):
+            #             parent._modules[mkey] = PGAttentionSubsampleLeVit.copyAttn(n_parent, **kwargs)
+            #         else:
+            #             raise ValueError("Unrecongnized Replace target {layer_name}!")
+            #         del n_parent
+            #     else:
+            #         parent = n_parent
     return model

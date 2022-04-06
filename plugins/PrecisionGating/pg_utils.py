@@ -87,7 +87,9 @@ def replacePGModule(model, **kwargs):
             # Porcess Special Ones
             elif isinstance(m, (levit.Attention, levit.AttentionSubsample)):
                 levit_layers.append(n)
-        cand_layers = conv_layers + linear_layers + attn_layers + levit_layers
+        cand_layers = conv_layers + linear_layers + attn_layers
+        if len(levit_layers)>0:
+            cand_layers = levit
         for (layer_id, layer_name) in enumerate(cand_layers):
             # Get the strip path of each conv layer
             name_seq = layer_name.split(".")

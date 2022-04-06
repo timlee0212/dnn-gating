@@ -62,7 +62,7 @@ if __name__ == "__main__":
         __logger.info("Using config file. Ignoring experiment path setting")
         ins = Dumper(config)
     elif args.exp_path is not None:
-        ins = Dumper.from_file(args.exp_path, dump_path=args.dump_path)
+        ins = Dumper.from_folder(args.exp_path, dump_path=args.dump_path)
     else:
         __logger.error("No valid config file provided.")
         exit()

@@ -230,10 +230,12 @@ class Experiment:
             backend='nccl', init_method='env://')
 
         # Set visible devices for this process
-        torch.cuda.set_device(torch.device("cuda", self.local_rank))
+        #torch.cuda.set_device(torch.device("cuda", self.local_rank))
+        #Set avaliable GPUs
+        os.environ["CUDA_VISIBLE_DEVICES"] = str(self.config.Experiment.gpu_ids[self.local_rank])
 
-        self.cmd_logger.info('Training in distributed mode with multiple processes, 1 GPU per process. Process {0},'
-                             ' total {1}.'.format(self.local_rank, torch.distributed.get_world_size()))
+        self.cmd_logger.info('Training in distributed mode with multiple processes, 1 GPU per process. Process {0}/{1}'
+                             '. Using GPU {2}.'.format(self.local_rank, torch.distributed.get_world_size(), os.environ["CUDA_VISIBLE_DEVICES"]))
 
         # Deal with sync BN in the distributed setting
         if self.config.Experiment.sync_bn:

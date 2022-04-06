@@ -150,7 +150,11 @@ class Experiment:
 
         self.model.to(self.device, memory_format=torch.channels_last
         if self.config.Experiment.channel_last else torch.contiguous_format)
-
+        if self.config.Experiment.dist:
+            #We use environment variable to control the GPU assignment
+            self.cmd_logger.debug("Using GPU Device {0}".format(torch.cuda.current_device()))
+            self.model = torch.nn.parallel.distributed.DistributedDataParallel(self.model)
+                                                                               #device_ids=[self.local_rank, ])
         self.cmd_logger.debug(self.model.__str__())
 
     def _init_data(self):
@@ -243,10 +247,6 @@ class Experiment:
         self.cmd_logger.info('Training in distributed mode with multiple processes, 1 GPU per process. Process {0}/{1}'
                              '. Using GPU {2}.'.format(self.local_rank, torch.distributed.get_world_size(),
                                                        os.environ["CUDA_VISIBLE_DEVICES"]))
-
-        #We use environment variable to control the GPU assignment
-        self.model = torch.nn.parallel.distributed.DistributedDataParallel(self.model)
-                                                                           #device_ids=[self.local_rank, ])
 
         # Deal with sync BN in the distributed setting
         if self.config.Experiment.sync_bn:

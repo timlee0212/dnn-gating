@@ -1,15 +1,19 @@
 import argparse
 import logging
 import random
-
-from core import Config, Experiment
 import os, sys
 import subprocess
 
 #FIX BUG
 os.environ['MKL_SERVICE_FORCE_INTEL'] = '1'
+
 import torch.multiprocessing
 torch.multiprocessing.set_sharing_strategy('file_system')
+
+from core import Config, Experiment
+
+
+
 
 
 parser = argparse.ArgumentParser(description='Training Config', add_help=True)

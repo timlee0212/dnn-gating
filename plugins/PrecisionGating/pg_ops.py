@@ -237,8 +237,8 @@ class PGAttentionPVT(PGAttention):
     @classmethod
     def copyAttn(cls, attn, **kwargs):
         pgattn = cls(attn.dim, attn.num_heads,
-                     attn.qkv.bias is not None, attn_drop = attn.attn_drop,
-                     proj_drop = attn.proj_drop, sr_ratio = attn.sr_ratio, **kwargs)
+                     attn.kv.bias is not None, attn_drop = attn.attn_drop.p,
+                     proj_drop = attn.proj_drop.p, sr_ratio = attn.sr_ratio, **kwargs)
         pgattn.q = QLinear.copyLinear(attn.q, wbits=kwargs['wbits'], abits=kwargs['abits'])
         pgattn.kv = QLinear.copyLinear(attn.kv, wbits=kwargs['wbits'], abits=kwargs['abits'])
         pgattn.proj = QLinear.copyLinear(attn.proj, wbits=kwargs['wbits'], abits=kwargs['abits'])

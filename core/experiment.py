@@ -151,8 +151,9 @@ class Experiment:
         self.model.to(self.device, memory_format=torch.channels_last
         if self.config.Experiment.channel_last else torch.contiguous_format)
         if self.config.Experiment.dist:
-            self.model = torch.nn.parallel.distributed.DistributedDataParallel(self.model,
-                                                                               device_ids=[self.local_rank, ])
+            #We use environment variable to control the GPU assignment
+            self.model = torch.nn.parallel.distributed.DistributedDataParallel(self.model)
+                                                                               #device_ids=[self.local_rank, ])
         self.cmd_logger.debug(self.model.__str__())
 
     def _init_data(self):

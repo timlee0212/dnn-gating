@@ -103,46 +103,39 @@ def replacePGModule(model, **kwargs):
             if dup_flag:
                 continue
 
-            if "blocks" in layer_name:  # The target module for gating
-                print("Replacing ", layer_name)
-                module_name = "model."+".".join([mkey if not mkey.isdigit() else ("["+ mkey + "]") for mkey in layer_name.split(".")])
-                module_name = module_name.replace(".[", "[")
-                print(module_name)
-                if layer_name in conv_layers:
+            module_name = "model." + ".".join(
+                [mkey if not mkey.isdigit() else ("[" + mkey + "]") for mkey in layer_name.split(".")])
+            module_name = module_name.replace(".[", "[")
+            if layer_name in linear_layers:
+                print("Quantizing ", layer_name)
+                exec(
+                    "{target_module} = QLinear.copyLinear({target_module}, wbits=kwargs['wbits'], abits=kwargs['abits'])".format(
+                        target_module=module_name))
+            elif layer_name in attn_layers:
+                print("Replacing ", layer_name, " FOR PGAttention")
+                exec(
+                    "{target_module} = PGAttention.copyAttn({target_module}, **kwargs)".format(
+                        target_module=module_name))
+            elif layer_name in levit_layers:
+                print("Replacing ", layer_name, " for PG LeViT Attention Layer")
+                exec('if isinstance({target_module}, levit.Attention):\n'
+                     '   {target_module} = PGAttentionLeVit.copyAttn({target_module}, **kwargs)\n'
+                     'elif isinstance({target_module}, levit.AttentionSubsample):\n'
+                     '   {target_module} = PGAttentionSubsampleLeVit.copyAttn({target_module}, **kwargs)'.format(
+                    target_module=module_name))
+            elif layer_name in conv_layers:
+                if "blocks" in layer_name:
+                    print("Replacing ", layer_name, " for PG Conv 2D Layer")
                     exec(
                         "{target_module} = PGConv2d.copyConv({target_module}, **kwargs)".format(
                             target_module=module_name))
-                elif layer_name in linear_layers:
-                    exec(
-                        "{target_module} = QLinear.copyLinear({target_module}, wbits=kwargs['wbits'], abits=kwargs['abits'])".format(
-                            target_module=module_name))
-                elif layer_name in attn_layers:
-                    exec(
-                        "{target_module} = PGAttention.copyAttn({target_module}, **kwargs)".format(
-                            target_module=module_name))
-                elif layer_name in levit_layers:
-                    exec('if isinstance({target_module}, levit.Attention):\n'
-                        '   {target_module} = PGAttentionLeVit.copyAttn({target_module}, **kwargs)\n'
-                        'elif isinstance({target_module}, levit.AttentionSubsample):\n'
-                        '   {target_module} = PGAttentionSubsampleLeVit.copyAttn({target_module}, **kwargs)'.format(
-                            target_module=module_name))
                 else:
-                    raise ValueError("Unrecognized Layer {0}".format(layer_name))
-            else:  # Quantization Only
-                print("Quantizing ", layer_name)
-                module_name = "model." + ".".join(
-                    [mkey if not mkey.isdigit() else ("[" + mkey + "]") for mkey in layer_name.split(".")])
-                module_name = module_name.replace(".[", "[")
-                print(module_name)
-                if layer_name in conv_layers:
-                    exec("{target_module} = PGConv2d.copyConv({target_module}, wbits=kwargs['wbits'], abits=kwargs['abits'], pgabits=8, sparse_bp=False, th=0.)".format(
-                            target_module=module_name))
-                elif layer_name in linear_layers:
+                    print("Quantizing ", layer_name)
                     exec(
-                        "{target_module} = QLinear.copyLinear({target_module}, wbits=kwargs['wbits'], abits=kwargs['abits'])".format(
+                        "{target_module} = PGConv2d.copyConv({target_module}, wbits=kwargs['wbits'], abits=kwargs['abits'], pgabits=8, sparse_bp=False, th=0.)".format(
                             target_module=module_name))
-                else:
-                    raise ValueError("Unrecognized Layer {0}".format(layer_name))
+            else:
+                raise ValueError("Unrecognized Layer {0}".format(layer_name))
 
             # # Get the strip path of each conv layer
             # name_seq = layer_name.split(".")

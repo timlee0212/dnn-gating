@@ -55,3 +55,4 @@ Plugins:
     pgabits:    4
     threshold:  0.005
     sparse_bp:  False
+    old_rp: True

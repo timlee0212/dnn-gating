@@ -218,7 +218,7 @@ class PGAttention(nn.Module):
         self.num_high = torch.sum(mask).item()
         return x
 
-class PGAttetionPVT(PGAttention):
+class PGAttentionPVT(PGAttention):
     def __init__(self,  dim, num_heads=8, qkv_bias=False, qk_scale=None, attn_drop=0., proj_drop=0., sr_ratio=1, wbits=8, abits=8, pgabits=4,
                  sparse_bp=False, th=0.99):
         super().__init__(dim, num_heads, qkv_bias, attn_drop, proj_drop, wbits, abits, pgabits, sparse_bp, th)

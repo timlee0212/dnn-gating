@@ -321,7 +321,7 @@ class PGAttentionLeVit(levit.Attention):
                  abits=8, pgabits=4, sparse_bp=False, th=0.99):
         super().__init__(dim, key_dim, num_heads, attn_ratio, act_layer, resolution, use_conv)
 
-        self.threshold = 0
+        self.threshold = th
         self.gt = SparseGreaterThan if sparse_bp else GreaterThan
         self.mask = None
         self.quantize_a = TorchQuantize(abits)
@@ -406,7 +406,7 @@ class PGAttentionLeVit(levit.Attention):
         attn_msb = (q_msb @ k_msb.transpose(-2, -1)) * self.scale
         # attn_msb = self.quantize_noise(attn_msb)
         attn_msb = attn_msb.softmax(dim=-1)
-        mask = self.gt.apply(attn_msb, self.threshold)
+        mask = self.gt.apply(attn_msb.abs(), self.threshold)
         return mask
 
 
@@ -416,11 +416,11 @@ class PGAttentionSubsampleLeVit(levit.AttentionSubsample):
         super().__init__(
             in_dim, out_dim, key_dim, num_heads, attn_ratio, act_layer, stride, resolution, resolution_, use_conv)
 
-        self.threshold = 0.0
         self.gt = SparseGreaterThan if sparse_bp else GreaterThan
         self.mask = None
         self.quantize_a = TorchQuantize(abits)
         self.quantize_MSB = TorchQuantize(pgabits)
+        self.threshold = th
         self.num_out = 0
         """ number of output features computed at high precision """
         self.num_high = 0
@@ -509,5 +509,5 @@ class PGAttentionSubsampleLeVit(levit.AttentionSubsample):
         attn_msb = (q_msb @ k_msb.transpose(-2, -1)) * self.scale
         # attn_msb = self.quantize_noise(attn_msb)
         attn_msb = attn_msb.softmax(dim=-1)
-        mask = self.gt.apply(attn_msb, self.threshold)
+        mask = self.gt.apply(attn_msb.abs(), self.threshold)
         return mask

@@ -5,7 +5,6 @@ import os
 import sys
 sys.path.append(os.getcwd())
 
-
 import torch
 
 from core import Inspector, Config

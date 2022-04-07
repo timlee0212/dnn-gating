@@ -22,7 +22,7 @@ class Inspector:
         self.config.Experiment.dist = False
         self.checkpoint_path = os.path.join(config.Experiment.path, config.Experiment.exp_id, "ckpt", "last.pth.tar")
 
-        if not hasattr(config.Experiment, "checkpoint_path"):
+        if not hasattr(config.Experiment, "checkpoint_path") and config.Experiment.resume:
             config.Experiment.checkpoint_path = self.checkpoint_path
         # Setup output logger
         root_logger = logging.getLogger()

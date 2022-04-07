@@ -77,14 +77,15 @@ class precisionGating(Plugin):
 
     def evalIterHook(self, model, iter_id, logger=None):
         for n, m in model.named_modules():
-            if isinstance(m, (PGConv2d, PGAttention, PGAttentionLeVit, PGAttentionPVT)):
-                self.cmd_logger.debug("Layer {0}, out: {1}, high: {2}, layerwise spar: {3}".format(n, m.num_out, m.num_high, (1-m.num_high/m.num_out)))
-                if n not in self.cnt_out.keys():
-                    self.cnt_out[n] = m.num_out
-                    self.cnt_high[n] = m.num_high
-                else:
-                    self.cnt_out[n] += m.num_out
-                    self.cnt_high[n] += m.num_high
+            if isinstance(m, (PGConv2d, PGAttention, PGAttentionLeVit, PGAttentionPVT, PGAttentionSubsampleLeVit)):
+                if m.num_out>0:
+                    self.cmd_logger.debug("Layer {0}, out: {1}, high: {2}, layerwise spar: {3}".format(n, m.num_out, m.num_high, (1-m.num_high/m.num_out)))
+                    if n not in self.cnt_out.keys():
+                        self.cnt_out[n] = m.num_out
+                        self.cnt_high[n] = m.num_high
+                    else:
+                        self.cnt_out[n] += m.num_out
+                        self.cnt_high[n] += m.num_high
 
     def evalTailHook(self, model, epoch_id=None, logger=None):
         if sum(self.cnt_high.values()) > 0:

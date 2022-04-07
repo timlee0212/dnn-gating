@@ -371,7 +371,7 @@ class PGAttentionLeVit(levit.Attention):
             qkv = self.quantize_a(self.qkv(x).view(
                 B, self.num_heads, -1, H * W)).split([self.key_dim, self.key_dim, self.d], dim=2)
             q, k, v = qkv[0], qkv[1], qkv[2]
-            self.mask = self._gen_mask(q, k)
+            self.mask = self._gen_mask(q, k, x.device)
 
             attn = (q.transpose(-2, -1) @ k) * self.scale + \
                    self.get_attention_biases(x.device)
@@ -386,7 +386,7 @@ class PGAttentionLeVit(levit.Attention):
             q = q.permute(0, 2, 1, 3)
             k = k.permute(0, 2, 1, 3)
             v = v.permute(0, 2, 1, 3)
-            self.mask = self._gen_mask(q, k)
+            self.mask = self._gen_mask(q, k, x.device)
 
             attn = q @ k.transpose(-2, -1) * self.scale + \
                    self.get_attention_biases(x.device)
@@ -400,10 +400,10 @@ class PGAttentionLeVit(levit.Attention):
         return x
 
 
-    def _gen_mask(self, q, k):
+    def _gen_mask(self, q, k, device):
         q_msb = self.quantize_MSB(q)
         k_msb = self.quantize_MSB(k)
-        attn_msb = (q_msb @ k_msb.transpose(-2, -1)) * self.scale
+        attn_msb = (q_msb @ k_msb.transpose(-2, -1)) * self.scale + self.get_attention_biases(device)
         # attn_msb = self.quantize_noise(attn_msb)
         attn_msb = attn_msb.softmax(dim=-1)
         mask = self.gt.apply(attn_msb, self.threshold)
@@ -420,7 +420,7 @@ class PGAttentionSubsampleLeVit(levit.AttentionSubsample):
         self.mask = None
         self.quantize_a = TorchQuantize(abits)
         self.quantize_MSB = TorchQuantize(pgabits)
-        self.threshold = 0.0
+        self.threshold = th
         self.num_out = 0
         """ number of output features computed at high precision """
         self.num_high = 0
@@ -474,7 +474,7 @@ class PGAttentionSubsampleLeVit(levit.AttentionSubsample):
             k, v = kv[0], kv[1]
             q = self.quantize_a(self.q(x).view(
                 B, self.num_heads, self.key_dim, self.resolution_2))
-            self.mask = self._gen_mask(q, k)
+            self.mask = self._gen_mask(q, k, x.device)
 
             attn = (q.transpose(-2, -1) @ k) * self.scale + \
                    self.get_attention_biases(x.device)
@@ -490,7 +490,7 @@ class PGAttentionSubsampleLeVit(levit.AttentionSubsample):
             v = v.permute(0, 2, 1, 3)
             q = self.quantize_a(self.q(x).view(
                 B, self.resolution_2, self.num_heads, self.key_dim).permute(0, 2, 1, 3))
-            self.mask = self._gen_mask(q, k)
+            self.mask = self._gen_mask(q, k, x.device)
 
             attn = q @ k.transpose(-2, -1) * self.scale + \
                    self.get_attention_biases(x.device)
@@ -503,10 +503,10 @@ class PGAttentionSubsampleLeVit(levit.AttentionSubsample):
         self.num_high = torch.sum(self.mask).item()
         return x
 
-    def _gen_mask(self, q, k):
+    def _gen_mask(self, q, k, device):
         q_msb = self.quantize_MSB(q)
         k_msb = self.quantize_MSB(k)
-        attn_msb = (q_msb @ k_msb.transpose(-2, -1)) * self.scale
+        attn_msb = (q_msb @ k_msb.transpose(-2, -1)) * self.scale + self.get_attention_biases(device)
         # attn_msb = self.quantize_noise(attn_msb)
         attn_msb = attn_msb.softmax(dim=-1)
         mask = self.gt.apply(attn_msb.abs(), attn_msb.std() * self.threshold)

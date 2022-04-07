@@ -344,6 +344,8 @@ class PGAttentionLeVit(levit.Attention):
         pgattn = cls(dim, leAttn.key_dim, leAttn.num_heads, leAttn.attn_ratio,
                      leAttn.proj[0].__class__, use_conv=leAttn.use_conv, **kwargs)
 
+        pgattn.qkv = leAttn.qkv
+        pgattn.proj = leAttn.proj
         # Now we copy the weights
         pgattn.qkv.c = QConv2d.copyConv(leAttn.qkv.c, wbits=kwargs['wbits'], abits=kwargs['abits']) \
             if pgattn.use_conv else QLinear.copyLinear(leAttn.qkv.c, wbits=kwargs['wbits'], abits=kwargs['abits'])
@@ -351,8 +353,8 @@ class PGAttentionLeVit(levit.Attention):
             if pgattn.use_conv else QLinear.copyLinear(leAttn.proj[1].c, wbits=kwargs['wbits'], abits=kwargs['abits'])
 
         #Now we copy BN
-        pgattn.qkv.bn = leAttn.qkv.bn
-        pgattn.proj[1].bn = leAttn.proj[1].bn
+        # pgattn.qkv.bn = leAttn.qkv.bn
+        # pgattn.proj[1].bn = leAttn.proj[1].bn
 
         # Recopy the buffer
         pgattn.attention_biases = leAttn.attention_biases#nn.Parameter(leAttn.attention_biases.clone())
@@ -420,7 +422,7 @@ class PGAttentionSubsampleLeVit(levit.AttentionSubsample):
         self.mask = None
         self.quantize_a = TorchQuantize(abits)
         self.quantize_MSB = TorchQuantize(pgabits)
-        self.threshold = th
+        self.threshold = 0.0
         self.num_out = 0
         """ number of output features computed at high precision """
         self.num_high = 0
@@ -450,6 +452,9 @@ class PGAttentionSubsampleLeVit(levit.AttentionSubsample):
         delattr(pgattn, "attention_bias_idxs")
         pgattn.register_buffer("attention_bias_idxs", leAttnSS.attention_bias_idxs.clone())
         pgattn.ab = leAttnSS.ab
+        pgattn.proj = pgattn.proj
+        pgattn.q = pgattn.q
+        pgattn.proj = pgattn.proj
         pgattn.kv.c = QConv2d.copyConv(leAttnSS.kv.c, wbits=kwargs['wbits'], abits=kwargs['abits']) \
             if pgattn.use_conv else QLinear.copyLinear(leAttnSS.kv.c, wbits=kwargs['wbits'], abits=kwargs['abits'])
         pgattn.q[1].c = QConv2d.copyConv(leAttnSS.q[1].c, wbits=kwargs['wbits'], abits=kwargs['abits']) \
@@ -480,7 +485,7 @@ class PGAttentionSubsampleLeVit(levit.AttentionSubsample):
                    self.get_attention_biases(x.device)
             attn = (attn * self.mask).softmax(dim=-1)
 
-            #attn = self.quantize_a(attn)
+            attn = self.quantize_a(attn)
             x = (v @ attn.transpose(-2, -1)).reshape(B, - \
                 1, self.resolution_, self.resolution_)
         else:
@@ -496,7 +501,7 @@ class PGAttentionSubsampleLeVit(levit.AttentionSubsample):
                    self.get_attention_biases(x.device)
             attn = (attn * self.mask).softmax(dim=-1)
 
-            #attn = self.quantize_a(attn)
+            attn = self.quantize_a(attn)
             x = (attn @ v).transpose(1, 2).reshape(B, -1, self.dh)
         x = self.proj(x)
         self.num_out = self.mask.numel()

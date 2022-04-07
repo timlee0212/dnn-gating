@@ -125,11 +125,11 @@ def replacePGModule(model, **kwargs):
                     "{target_module} = PGAttention.copyAttn({target_module}, **kwargs)".format(
                         target_module=module_name))
             elif layer_name in levit_layers:
-                print("Replacing ", layer_name, " for PG LeViT Attention Layer")
+                print("Replacing ", layer_name, " for PG LeViT Attention Layer")     
                 exec('if isinstance({target_module}, levit.Attention):\n'
                      '   {target_module} = PGAttentionLeVit.copyAttn({target_module}, **kwargs)\n'
                      'elif isinstance({target_module}, levit.AttentionSubsample):\n'
-                     '   {target_module} = PGAttentionSubsampleLeVit.copyAttn({target_module}, **kwargs)'.format(
+                     '   pass#{target_module} = PGAttentionSubsampleLeVit.copyAttn({target_module}, **kwargs)'.format(
                     target_module=module_name))
             elif layer_name in pvt_layers:
                 print("Replacing ", layer_name, " for PG PVT Attention Layer")

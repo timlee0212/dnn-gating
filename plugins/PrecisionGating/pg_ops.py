@@ -355,7 +355,7 @@ class PGAttentionLeVit(levit.Attention):
         pgattn.proj[1].bn = leAttn.proj[1].bn
 
         # Recopy the buffer
-        pgattn.attention_biases = nn.Parameter(leAttn.attention_biases.clone())
+        pgattn.attention_biases = leAttn.attention_biases#nn.Parameter(leAttn.attention_biases.clone())
         delattr(pgattn, "attention_bias_idxs")
         pgattn.register_buffer("attention_bias_idxs", leAttn.attention_bias_idxs.clone())
         pgattn.ab = leAttn.ab
@@ -399,7 +399,7 @@ class PGAttentionLeVit(levit.Attention):
         self.num_high = torch.sum(self.mask).item()
         return x
 
-
+    @torch.no_grad
     def _gen_mask(self, q, k, device):
         q_msb = self.quantize_MSB(q)
         k_msb = self.quantize_MSB(k)
@@ -446,7 +446,7 @@ class PGAttentionSubsampleLeVit(levit.AttentionSubsample):
                      leAttnSS.proj[0].__class__, resolution=leAttnSS.resolution, resolution_=leAttnSS.resolution_,
                      stride=leAttnSS.stride, use_conv=leAttnSS.use_conv, **kwargs)
         # Now we copy the weights
-        pgattn.attention_biases = nn.Parameter(leAttnSS.attention_biases.clone())
+        pgattn.attention_biases = leAttnSS.attention_biases#nn.Parameter(leAttnSS.attention_biases.clone())
         delattr(pgattn, "attention_bias_idxs")
         pgattn.register_buffer("attention_bias_idxs", leAttnSS.attention_bias_idxs.clone())
         pgattn.ab = leAttnSS.ab
@@ -503,6 +503,7 @@ class PGAttentionSubsampleLeVit(levit.AttentionSubsample):
         self.num_high = torch.sum(self.mask).item()
         return x
 
+    @torch.no_grad
     def _gen_mask(self, q, k, device):
         q_msb = self.quantize_MSB(q)
         k_msb = self.quantize_MSB(k)

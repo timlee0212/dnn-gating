@@ -346,18 +346,14 @@ class PGAttentionLeVit(levit.Attention):
                      leAttn.proj[0].__class__, use_conv=leAttn.use_conv, **kwargs)
         # Now we copy the weights
 
-        #pgattn.qkv = leAttn.qkv
         pgattn.qkv.c = QConv2d.copyConv(leAttn.qkv.c, wbits=kwargs['wbits'], abits=kwargs['abits']) \
             if pgattn.use_conv else QLinear.copyLinear(leAttn.qkv.c, wbits=kwargs['wbits'], abits=kwargs['abits'])
-        pgattn.qkv.bn = leAttn.qkv.bn#.weight.data.copy_(leAttn.qkv.bn.weight)
-        #pgattn.qkv.bn = leAttn.qkv.bias#.data.copy_(leAttn.qkv.bn.bias)
+        pgattn.qkv.bn = leAttn.qkv.bn
         pgattn.proj = leAttn.proj
         pgattn.proj[1].c = QConv2d.copyConv(leAttn.proj[1].c, wbits=kwargs['wbits'], abits=kwargs['abits']) \
             if pgattn.use_conv else QLinear.copyLinear(leAttn.proj[1].c, wbits=kwargs['wbits'], abits=kwargs['abits'])
-        pgattn.proj[1].bn.weight.data.copy_(leAttn.proj[1].bn.weight)
-        pgattn.proj[1].bn.bias.data.copy_(leAttn.proj[1].bn.bias)
-        # pgattn.qkv = leAttn.qkv
-        # pgattn.proj = leAttn.proj
+        pgattn.proj[1].bn = leAttn.proj[1].bn
+
         # Recopy the buffer
         pgattn.attention_biases = nn.Parameter(leAttn.attention_biases.clone())
         delattr(pgattn, "attention_bias_idxs")

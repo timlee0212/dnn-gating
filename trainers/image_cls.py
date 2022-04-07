@@ -180,7 +180,7 @@ class imgCls(Trainer):
                 if self.train_loader.mixup_fn is not None:
                     input, target = self.train_loader.mixup_fn(input, target)
                     
-            if target.shape[1]>1:   #If using mixup
+            if len(target.shape)>1 and target.shape[1]>1:   #If using mixup
                 acc_target = torch.clone(target).argmax(dim=1)
                 #Extract the label from mixup version
             else:

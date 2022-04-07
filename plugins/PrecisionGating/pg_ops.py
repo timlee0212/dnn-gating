@@ -245,6 +245,7 @@ class PGAttentionLeVit(levit.Attention):
 
     @classmethod
     def copyAttn(cls, leAttn: levit.Attention, **kwargs):
+
         dim = leAttn.qkv.c.in_channels if leAttn.use_conv else leAttn.qkv.c.in_features
         pgattn = cls(dim, leAttn.key_dim, leAttn.num_heads, leAttn.attn_ratio,
                      leAttn.proj[0].__class__, use_conv=leAttn.use_conv, **kwargs)
@@ -264,7 +265,7 @@ class PGAttentionLeVit(levit.Attention):
         pgattn.qkv.bn.bias.data.copy_(leAttn.qkv.bn.bias)
         pgattn.proj[1].bn.weight.data.copy_(leAttn.proj[1].bn.weight)
         pgattn.proj[1].bn.bias.data.copy_(leAttn.proj[1].bn.bias)
-
+        
         return pgattn
 
     # Override the forward function

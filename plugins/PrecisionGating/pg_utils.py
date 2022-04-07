@@ -126,7 +126,7 @@ def replacePGModule(model, **kwargs):
                 exec('if isinstance({target_module}, levit.Attention):\n'
                      '   {target_module} = PGAttentionLeVit.copyAttn({target_module}, **kwargs)\n'
                      'elif isinstance({target_module}, levit.AttentionSubsample):\n'
-                     '   pass#{target_module} = PGAttentionSubsampleLeVit.copyAttn({target_module}, **kwargs)'.format(
+                     '   {target_module} = PGAttentionSubsampleLeVit.copyAttn({target_module}, **kwargs)'.format(
                     target_module=module_name))
             elif layer_name in pvt_layers:
                 print("Replacing ", layer_name, " for PG PVT Attention Layer")
@@ -142,7 +142,7 @@ def replacePGModule(model, **kwargs):
                 else:
                     print("Quantizing ", layer_name)
                     exec(
-                        "{target_module} = PGConv2d.copyConv({target_module}, wbits=kwargs['wbits'], abits=kwargs['abits'], pgabits=8, sparse_bp=False, th=0.)".format(
+                        "{target_module} = QConv2d.copyConv({target_module}, wbits=kwargs['wbits'], abits=kwargs['abits'])".format(
                             target_module=module_name))
             else:
                 raise ValueError("Unrecognized Layer {0}".format(layer_name))

@@ -130,6 +130,8 @@ dmypy.json
 
 # Trained Model Checkpoints
 *.pt
+*.pth
+*.npy
 cifar10_model/
 imagenet_model/
 checkpoint/

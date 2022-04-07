@@ -1,6 +1,8 @@
 from timm.models.layers import Mlp
 from timm.models.vision_transformer import Attention
 
+from models import pvt
+
 from .pg_ops import *
 
 
@@ -76,6 +78,7 @@ def replacePGModule(model, **kwargs):
 
         # Special Processing
         levit_layers = []
+        pvt_layers = []
 
         for n, m in model.named_modules():
             if isinstance(m, torch.nn.Conv2d):
@@ -87,7 +90,9 @@ def replacePGModule(model, **kwargs):
             # Porcess Special Ones
             elif isinstance(m, (levit.Attention, levit.AttentionSubsample)):
                 levit_layers.append(n)
-        cand_layers = conv_layers + linear_layers + attn_layers + levit_layers
+            elif isinstance(m, pvt.Attention):
+                pvt_layers.append(n)
+        cand_layers = conv_layers + linear_layers + attn_layers + levit_layers + pvt_layers
 
         for (layer_id, layer_name) in enumerate(cand_layers):
             # Get the parent name of the module
@@ -123,6 +128,11 @@ def replacePGModule(model, **kwargs):
                      'elif isinstance({target_module}, levit.AttentionSubsample):\n'
                      '   {target_module} = PGAttentionSubsampleLeVit.copyAttn({target_module}, **kwargs)'.format(
                     target_module=module_name))
+            elif layer_name in pvt_layers:
+                print("Replacing ", layer_name, " for PG PVT Attention Layer")
+                exec(
+                    "{target_module} = PGAttentionPVT.copyAttn({target_module}, **kwargs)".format(
+                        target_module=module_name))
             elif layer_name in conv_layers:
                 if "blocks" in layer_name:
                     print("Replacing ", layer_name, " for PG Conv 2D Layer")

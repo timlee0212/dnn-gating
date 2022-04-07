@@ -1,4 +1,6 @@
 from timm.models import create_model
+#Register Models
+from models import *
 
 # A wrapper for the timm model create function
 # Handle the bug of loading pretrained weight in the new version of the pytorch

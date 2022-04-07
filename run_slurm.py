@@ -41,7 +41,7 @@ if __name__=="__main__":
     if "SLURM_JOB_ID" not in os.environ:
         logger.info("Bootstraping with Slrum Commands")
         n_gpus = len(config.Experiment.gpu_ids)
-        command = ("NCCL_P2P_DISABLE=1 " if n_gpus>2 else "")  + "srun --gres=gpu:{0} --ntasks-per-node={1} --cpus-per-task={2} python run_slurm.py {3}".format(n_gpus, n_gpus, 8, " ".join(sys.argv[1:]))
+        command = ("NCCL_P2P_DISABLE=1 " if n_gpus>2 else "")  + "srun --gres=gpu:{0} --ntasks-per-node={1} --cpus-per-task={2} --partition={3} python run_slurm.py {4}".format(n_gpus, n_gpus, 8, args.slurm_node ," ".join(sys.argv[1:]))
         logger.info(command)
         os.system(command)
     else:

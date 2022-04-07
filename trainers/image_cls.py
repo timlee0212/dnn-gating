@@ -42,7 +42,8 @@ class imgCls(Trainer):
         self.eval_metric = config.Trainer.eval_metric
 
         self.loss_scaler = torch.cuda.amp.GradScaler() if config.Trainer.amp else None
-        self.loss_scaler.state_dict_key = "amp_scaler"
+        if self.loss_scaler is not None:
+            self.loss_scaler.state_dict_key = "amp_scaler"
         if saver is not None:
             saver.amp_scaler = self.loss_scaler
             saver.desceasing = (self.eval_metric == 'loss')

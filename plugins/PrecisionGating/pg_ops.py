@@ -352,7 +352,7 @@ class PGAttentionLeVit(levit.Attention):
 
         #Now we copy BN
         pgattn.qkv.bn = leAttn.qkv.bn
-        pgattn.proj.bn = leAttn.proj.bn
+        pgattn.proj[1].bn = leAttn.proj[1].bn
 
         # Recopy the buffer
         pgattn.attention_biases = nn.Parameter(leAttn.attention_biases.clone())

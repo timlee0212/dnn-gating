@@ -254,7 +254,7 @@ class PGAttentionPVT(PGAttention):
         super().__init__(dim, num_heads, qkv_bias, attn_drop, proj_drop, wbits, abits, pgabits, sparse_bp, th)
         delattr(self, "qkv")
         
-        self.scale = qk_scale or num_heads ** -0.5
+        self.scale = qk_scale or (dim//num_heads) ** -0.5
         self.q = QLinear(dim, dim, bias=qkv_bias, wbits=wbits, abits=abits)
         self.kv = QLinear(dim, dim * 2, bias=qkv_bias, wbits=wbits, abits=abits)
 
@@ -271,11 +271,11 @@ class PGAttentionPVT(PGAttention):
         pgattn.q = QLinear.copyLinear(attn.q, wbits=kwargs['wbits'], abits=kwargs['abits'])
         pgattn.kv = QLinear.copyLinear(attn.kv, wbits=kwargs['wbits'], abits=kwargs['abits'])
         pgattn.proj = QLinear.copyLinear(attn.proj, wbits=kwargs['wbits'])
-        if attn.sr_ratio >1:
+        if attn.sr_ratio > 1:
             kwargs['th'] = 0.0
             pgattn.sr = QConv2d.copyConv(attn.sr, wbits=kwargs['wbits'], abits=kwargs['abits'] )
-            pgattn.norm.weight.data.copy_(attn.norm.weight)
-            pgattn.norm.bias.data.copy_(attn.norm.bias)
+            pgattn.norm = attn.norm#.weight.data.copy_(attn.norm.weight)
+            #pgattn.norm.bias.data.copy_(attn.norm.bias)
         return pgattn
 
 
@@ -349,7 +349,7 @@ class PGAttentionLeVit(levit.Attention):
         pgattn.qkv.c = QConv2d.copyConv(leAttn.qkv.c, wbits=kwargs['wbits'], abits=kwargs['abits']) \
             if pgattn.use_conv else QLinear.copyLinear(leAttn.qkv.c, wbits=kwargs['wbits'], abits=kwargs['abits'])
         pgattn.qkv.bn = leAttn.qkv.bn
-        pgattn.proj = leAttn.proj
+
         pgattn.proj[1].c = QConv2d.copyConv(leAttn.proj[1].c, wbits=kwargs['wbits'], abits=kwargs['abits']) \
             if pgattn.use_conv else QLinear.copyLinear(leAttn.proj[1].c, wbits=kwargs['wbits'], abits=kwargs['abits'])
         pgattn.proj[1].bn = leAttn.proj[1].bn

@@ -225,8 +225,8 @@ class PGAttentionPVT(PGAttention):
         delattr(self, "qkv")
         
         self.scale = qk_scale or dim // num_heads ** -0.5
-        self.q = nn.Linear(dim, dim, bias=qkv_bias)
-        self.kv = nn.Linear(dim, dim * 2, bias=qkv_bias)
+        self.q = QLinear(dim, dim, bias=qkv_bias, wbits=wbits, abits=abits)
+        self.kv = QLinear(dim, dim * 2, bias=qkv_bias, wbits=wbits, abits=abits)
 
         self.sr_ratio = sr_ratio
         if sr_ratio > 1:
@@ -239,9 +239,20 @@ class PGAttentionPVT(PGAttention):
         pgattn = cls(attn.dim, attn.num_heads,
                      attn.kv.bias is not None, attn_drop = attn.attn_drop.p,
                      proj_drop = attn.proj_drop.p, sr_ratio = attn.sr_ratio, **kwargs)
-        pgattn.q = QLinear.copyLinear(attn.q, wbits=kwargs['wbits'], abits=kwargs['abits'])
-        pgattn.kv = QLinear.copyLinear(attn.kv, wbits=kwargs['wbits'], abits=kwargs['abits'])
-        pgattn.proj = QLinear.copyLinear(attn.proj, wbits=kwargs['wbits'], abits=kwargs['abits'])
+        pgattn.q.weight.data.copy_(attn.q.weight)
+        pgattn.q.weight_fp.data.copy_(attn.q.weight)
+        pgattn.kv.weight.data.copy_(attn.kv.weight)
+        pgattn.kv.weight_fp.data.copy_(attn.kv.weight)
+        pgattn.proj.weight.data.copy_(attn.proj.weight)
+        pgattn.proj.weight_fp.data.copy_(attn.proj.weight)
+
+        if attn.kv.bias is not None:
+            pgattn.q.bias.data.copy_(attn.q.bias)
+            pgattn.kv.bias.data.copy_(attn.kv.bias)
+            pgattn.proj.bias.data.copy_(attn.proj.bias)
+        # pgattn.q = QLinear.copyLinear(attn.q, wbits=kwargs['wbits'], abits=kwargs['abits'])
+        # pgattn.kv = QLinear.copyLinear(attn.kv, wbits=kwargs['wbits'], abits=kwargs['abits'])
+        # pgattn.proj = QLinear.copyLinear(attn.proj, wbits=kwargs['wbits'], abits=kwargs['abits'])
         if attn.sr_ratio >1:
             kwargs['th'] = 0.0
             pgattn.sr = PGConv2d.copyConv(attn.sr, **kwargs )

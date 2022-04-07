@@ -53,7 +53,7 @@ class QConv2d(nn.Conv2d):
         # Replicate weight
         new_conv.weight.data = conv.weight.data.clone()
         if not new_conv.bias is None:
-            new_conv.conv.bias.data = conv.bias.data.clone()
+            new_conv.bias.data = conv.bias.data.clone()
         new_conv.weight_fp = conv.weight.data.clone()
         return new_conv
 

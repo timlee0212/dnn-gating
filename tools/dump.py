@@ -32,7 +32,7 @@ class Dumper(Inspector):
     # Override the run function
     def run(self):
         self.trainer.evalModel(self.model, n_iter=1)
-        np.save(os.path.join(self.path, self.model.__class__.__name__ +
+        np.save(os.path.join(self.path, self.config.Model.model_name +
                 "_mask.npy"), self.layer_masks)
 
 

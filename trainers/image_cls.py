@@ -42,7 +42,8 @@ class imgCls(Trainer):
         self.eval_metric = config.Trainer.eval_metric
 
         self.loss_scaler = torch.cuda.amp.GradScaler() if config.Trainer.amp else None
-        self.loss_scaler.state_dict_key = "amp_scaler"
+        if self.loss_scaler is not None:
+            self.loss_scaler.state_dict_key = "amp_scaler"
         if saver is not None:
             saver.amp_scaler = self.loss_scaler
             saver.desceasing = (self.eval_metric == 'loss')
@@ -137,7 +138,7 @@ class imgCls(Trainer):
                             loss=losses_m, top1=top1_m, top5=top5_m))
                 #Stop after certain iterations
                 if "n_iter" in kwargs.keys() and batch_idx>=kwargs["n_iter"]:
-                    self.cmd_logger.info("Stop evaluation in iteration {0} as directed!")
+                    self.cmd_logger.info("Stop evaluation in iteration {0} as directed!".format(kwargs['n_iter']))
                     break
         for plg in self.plugins:
             plg.evalTailHook(model, logger=self.logger,
@@ -180,7 +181,7 @@ class imgCls(Trainer):
                 if self.train_loader.mixup_fn is not None:
                     input, target = self.train_loader.mixup_fn(input, target)
                     
-            if target.shape[1]>1:   #If using mixup
+            if len(target.shape)>1 and target.shape[1]>1:   #If using mixup
                 acc_target = torch.clone(target).argmax(dim=1)
                 #Extract the label from mixup version
             else:

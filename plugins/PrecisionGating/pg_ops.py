@@ -47,7 +47,8 @@ class QConv2d(nn.Conv2d):
                        stride=conv.stride,
                        padding=conv.padding,
                        bias=(not conv.bias is None),
-                       wbits=kwargs['wbits'],)
+                       wbits=kwargs['wbits'],
+                       abits=kwargs['abits'])
 
         # Replicate weight
         new_conv.weight.data = conv.weight.data.clone()
@@ -334,10 +335,9 @@ class PGAttentionLeVit(levit.Attention):
 
         # Now we override some modules
         # This is hardcoded in the levit code, Caution possible changes for furutre version!
-        self.qkv.c = QConv2d.copyConv(self.qkv.c, quant_only=True, wbits=wbits, abits=abits, pgabits=pgabits, sparse_bp=sparse_bp,
+        self.qkv.c = QConv2d.copyConv(self.qkv.c, quant_only=True, wbits=wbits, abits=abits) \
             if self.use_conv else QLinear.copyLinear(self.qkv.c, wbits=wbits, abits=abits)
-        self.proj[1].c = QConv2d.copyConv(self.proj[1].c, quant_only=True, wbits=wbits, abits=abits, pgabits=pgabits,
-                                           sparse_bp=sparse_bp, th=th) \
+        self.proj[1].c = QConv2d.copyConv(self.proj[1].c, quant_only=True, wbits=wbits, abits=abits) \
             if self.use_conv else QLinear.copyLinear(self.proj[1].c, wbits=wbits, abits=abits)
 
     @classmethod
@@ -349,12 +349,11 @@ class PGAttentionLeVit(levit.Attention):
         # Now we copy the weights
         #pgattn = leAttn
         pgattn.attention_biases = nn.Parameter(leAttn.attention_biases.clone())
-        pgattn.qkv = leAttn.qkv
+        #pgattn.qkv = leAttn.qkv
         pgattn.qkv.c = QConv2d.copyConv(leAttn.qkv.c, **kwargs) \
             if pgattn.use_conv else QLinear.copyLinear(leAttn.qkv.c, wbits=kwargs['wbits'], abits=kwargs['abits'])
-
-        pgattn.qkv.bn.weight.data.copy_(leAttn.qkv.bn.weight)
-        pgattn.qkv.bn.bias.data.copy_(leAttn.qkv.bn.bias)
+        pgattn.qkv.bn = leAttn.qkv.bn#.weight.data.copy_(leAttn.qkv.bn.weight)
+        #pgattn.qkv.bn = leAttn.qkv.bias#.data.copy_(leAttn.qkv.bn.bias)
         pgattn.proj = leAttn.proj
         pgattn.proj[1].c = QConv2d.copyConv(leAttn.proj[1].c, **kwargs) \
             if pgattn.use_conv else QLinear.copyLinear(leAttn.proj[1].c, wbits=kwargs['wbits'], abits=kwargs['abits'])
@@ -423,7 +422,7 @@ class PGAttentionSubsampleLeVit(levit.AttentionSubsample):
         super().__init__(
             in_dim, out_dim, key_dim, num_heads, attn_ratio, act_layer, stride, resolution, resolution_, use_conv)
 
-        self.threshold = th
+        self.threshold = 0.0
         self.gt = SparseGreaterThan if sparse_bp else GreaterThan
         self.mask = None
         self.quantize_a = TorchQuantize(abits)

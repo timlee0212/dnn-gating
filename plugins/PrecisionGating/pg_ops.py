@@ -510,5 +510,5 @@ class PGAttentionSubsampleLeVit(levit.AttentionSubsample):
         attn_msb = (q_msb @ k_msb.transpose(-2, -1)) * self.scale + self.get_attention_biases(device)
         # attn_msb = self.quantize_noise(attn_msb)
         attn_msb = attn_msb.softmax(dim=-1)
-        mask = self.gt.apply(attn_msb.abs(), attn_msb.std() * self.threshold)
+        mask = self.gt.apply(attn_msb.abs(), self.threshold)
         return mask

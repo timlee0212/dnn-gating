@@ -2,6 +2,8 @@ import argparse
 import functools
 import logging
 import os
+import sys
+sys.path.append(os.getcwd())
 
 import torch
 import numpy as np

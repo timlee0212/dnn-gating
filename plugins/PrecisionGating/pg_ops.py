@@ -222,14 +222,14 @@ class PGAttention(nn.Module):
         return x
 
 class PGAttentionPVT(PGAttention):
-    def __init__(self,  dim, num_heads=8, qkv_bias=False, qk_scale=None, attn_drop=0., proj_drop=0., sr_ratio=1, wbits=8, abits=8, pgabits=4,
+    def __init__(self,  dim, num_heads=8, qkv_bias=False, qk_scale=None, attn_drop=0., proj_drop=0., sr_ratio=1, wbits=8, abits=32, pgabits=4,
                  sparse_bp=False, th=0.99):
         super().__init__(dim, num_heads, qkv_bias, attn_drop, proj_drop, wbits, abits, pgabits, sparse_bp, th)
         delattr(self, "qkv")
         
-        self.scale = qk_scale or dim // num_heads ** -0.5
-        self.q = nn.Linear(dim, dim, bias=qkv_bias)
-        self.kv = nn.Linear(dim, dim * 2, bias=qkv_bias)
+        self.scale = qk_scale or num_heads ** -0.5
+        self.q = QLinear(dim, dim, bias=qkv_bias, wbits=wbits, abits=abits)
+        self.kv = QLinear(dim, dim * 2, bias=qkv_bias, wbits=wbits, abits=abits)
 
         self.sr_ratio = sr_ratio
         if sr_ratio > 1:
@@ -243,7 +243,7 @@ class PGAttentionPVT(PGAttention):
                      proj_drop = attn.proj_drop.p, sr_ratio = attn.sr_ratio, **kwargs)
         pgattn.q = QLinear.copyLinear(attn.q, wbits=kwargs['wbits'], abits=kwargs['abits'])
         pgattn.kv = QLinear.copyLinear(attn.kv, wbits=kwargs['wbits'], abits=kwargs['abits'])
-        pgattn.proj = QLinear.copyLinear(attn.proj, wbits=kwargs['wbits'], abits=kwargs['abits'])
+        pgattn.proj = QLinear.copyLinear(attn.proj, wbits=kwargs['wbits'])
         if attn.sr_ratio >1:
             kwargs['th'] = 0.0
             pgattn.sr = PGConv2d.copyConv(attn.sr, quant_only=True, **kwargs )
@@ -272,12 +272,10 @@ class PGAttentionPVT(PGAttention):
         attn_msb = (q_msb @ k_msb.transpose(-2, -1)) * self.scale
         # attn_msb = self.quantize_noise(attn_msb)
         attn_msb = attn_msb.softmax(dim=-1)
-        mask = self.gt.apply(attn_msb, self.threshold)
-        msb_mask = torch.zeros_like(mask)
-        self.mask = mask
+        self.mask = self.gt.apply(attn_msb.abs(), self.threshold)
 
         attn = (q @ k.transpose(-2, -1)) * self.scale
-        attn = attn * mask
+        attn = attn * self.mask
         attn = attn.softmax(dim=-1)
         attn = self.attn_drop(attn)
         attn = self.quantize_a(attn)
@@ -285,8 +283,8 @@ class PGAttentionPVT(PGAttention):
         x = (attn @ v).transpose(1, 2).reshape(B, N, C)
         x = self.proj(x)
         x = self.proj_drop(x)
-        self.num_out = mask.numel()
-        self.num_high = torch.sum(mask).item()
+        self.num_out = self.mask.numel()
+        self.num_high = torch.sum(self.mask).item()
 
         return x
 

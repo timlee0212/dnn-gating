@@ -81,9 +81,9 @@ def replacePGModule(model, **kwargs):
         pvt_layers = []
 
         for n, m in model.named_modules():
-            if isinstance(m, torch.nn.Conv2d):
-                conv_layers.append(n)
-            elif isinstance(m, Attention):
+            # if isinstance(m, torch.nn.Conv2d):
+            #     conv_layers.append(n)
+            if isinstance(m, Attention):
                 attn_layers.append(n)
             elif isinstance(m, nn.Linear):
                 linear_layers.append(n)
@@ -95,6 +95,9 @@ def replacePGModule(model, **kwargs):
         cand_layers = conv_layers + linear_layers + attn_layers + levit_layers + pvt_layers
 
         for (layer_id, layer_name) in enumerate(cand_layers):
+            if "head" in layer_name:
+                print("Skip Classifier Head")
+                continue
             # Get the parent name of the module
             parent_name = ".".join(layer_name.split(".")[:-1])
             # First we check if the parent already in the candidate list to avoid duplicate the replacement process
@@ -134,16 +137,16 @@ def replacePGModule(model, **kwargs):
                     "{target_module} = PGAttentionPVT.copyAttn({target_module}, **kwargs)".format(
                         target_module=module_name))
             elif layer_name in conv_layers:
-                if "blocks" in layer_name:
-                    print("Replacing ", layer_name, " for PG Conv 2D Layer")
-                    exec(
-                        "{target_module} = PGConv2d.copyConv({target_module}, **kwargs)".format(
-                            target_module=module_name))
-                else:
-                    print("Quantizing ", layer_name)
-                    exec(
-                        "{target_module} = PGConv2d.copyConv({target_module}, wbits=kwargs['wbits'], abits=kwargs['abits'], pgabits=8, sparse_bp=False, th=0.)".format(
-                            target_module=module_name))
+                # if "blocks" in layer_name:
+                #     print("Replacing ", layer_name, " for PG Conv 2D Layer")
+                #     exec(
+                #         "{target_module} = PGConv2d.copyConv({target_module}, **kwargs)".format(
+                #             target_module=module_name))
+                # else:
+                print("Quantizing ", layer_name)
+                exec(
+                    "{target_module} = PGConv2d.copyConv({target_module}, quant_only=True, **kwargs)".format(
+                        target_module=module_name))
             else:
                 raise ValueError("Unrecognized Layer {0}".format(layer_name))
 

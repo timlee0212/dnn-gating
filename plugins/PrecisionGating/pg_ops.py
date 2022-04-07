@@ -399,7 +399,7 @@ class PGAttentionLeVit(levit.Attention):
         self.num_high = torch.sum(self.mask).item()
         return x
 
-    @torch.no_grad
+    @torch.no_grad()
     def _gen_mask(self, q, k, device):
         q_msb = self.quantize_MSB(q)
         k_msb = self.quantize_MSB(k)
@@ -503,7 +503,7 @@ class PGAttentionSubsampleLeVit(levit.AttentionSubsample):
         self.num_high = torch.sum(self.mask).item()
         return x
 
-    @torch.no_grad
+    @torch.no_grad()
     def _gen_mask(self, q, k, device):
         q_msb = self.quantize_MSB(q)
         k_msb = self.quantize_MSB(k)

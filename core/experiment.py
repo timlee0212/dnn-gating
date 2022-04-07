@@ -47,14 +47,6 @@ class Experiment:
         root_logger = logging.getLogger()
         log_level = logging.DEBUG if config.Experiment.debug else logging.INFO
         logging.basicConfig(level=log_level)
-        fh = logging.FileHandler(os.path.join(config.Experiment.path, config.Experiment.exp_id,
-                                              datetime.datetime.now().strftime("%y%m%d-%H-%M")
-                                              + config.Experiment.exp_id + ".log"))
-        fh.setLevel(log_level)
-        # ch = logging.StreamHandler()
-        # ch.setLevel(log_level)
-        # root_logger.addHandler(ch)
-        root_logger.addHandler(fh)
 
         self.cmd_logger = logging.getLogger("Experiment")
         self.cmd_logger.debug(self.config.config_dict)
@@ -66,12 +58,23 @@ class Experiment:
         self._set_seed()
         if config.Experiment.dist:
             self._init_dist()
+            torch.distributed.barrier()
         else:
             assert (self.config.Experiment.gpu_ids is None) or len(
                 self.config.Experiment.gpu_ids) == 1, "Cannot support multi-GPU in single process mode!"
             self.device = "cpu" if self.config.Experiment.gpu_ids is None else "cuda"
             os.environ["CUDA_VISIBLE_DEVICES"] = str(
                 self.config.Experiment.gpu_ids[0])
+
+        #Write logs after the barrier
+        fh = logging.FileHandler(os.path.join(config.Experiment.path, config.Experiment.exp_id,
+                                              datetime.datetime.now().strftime("%y%m%d-%H-%M")
+                                              + config.Experiment.exp_id + ".log"))
+        fh.setLevel(log_level)
+        # ch = logging.StreamHandler()
+        # ch.setLevel(log_level)
+        # root_logger.addHandler(ch)
+        root_logger.addHandler(fh)
 
         # Initilize Model
         self._init_model()

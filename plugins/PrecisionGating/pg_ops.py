@@ -408,7 +408,7 @@ class PGAttentionLeVit(levit.Attention):
         attn_msb = (q_msb @ k_msb.transpose(-2, -1)) * self.scale
         # attn_msb = self.quantize_noise(attn_msb)
         attn_msb = attn_msb.softmax(dim=-1)
-        mask = self.gt.apply(attn_msb.abs(), self.threshold)
+        mask = self.gt.apply(attn_msb, self.threshold)
         return mask
 
 
@@ -422,7 +422,7 @@ class PGAttentionSubsampleLeVit(levit.AttentionSubsample):
         self.mask = None
         self.quantize_a = TorchQuantize(abits)
         self.quantize_MSB = TorchQuantize(pgabits)
-        self.threshold = th
+        self.threshold = 0.0
         self.num_out = 0
         """ number of output features computed at high precision """
         self.num_high = 0
@@ -482,7 +482,7 @@ class PGAttentionSubsampleLeVit(levit.AttentionSubsample):
                    self.get_attention_biases(x.device)
             attn = (attn * self.mask).softmax(dim=-1)
 
-            attn = self.quantize_a(attn)
+            #attn = self.quantize_a(attn)
             x = (v @ attn.transpose(-2, -1)).reshape(B, - \
                 1, self.resolution_, self.resolution_)
         else:
@@ -498,7 +498,7 @@ class PGAttentionSubsampleLeVit(levit.AttentionSubsample):
                    self.get_attention_biases(x.device)
             attn = (attn * self.mask).softmax(dim=-1)
 
-            attn = self.quantize_a(attn)
+            #attn = self.quantize_a(attn)
             x = (attn @ v).transpose(1, 2).reshape(B, -1, self.dh)
         x = self.proj(x)
         self.num_out = self.mask.numel()
@@ -511,5 +511,5 @@ class PGAttentionSubsampleLeVit(levit.AttentionSubsample):
         attn_msb = (q_msb @ k_msb.transpose(-2, -1)) * self.scale
         # attn_msb = self.quantize_noise(attn_msb)
         attn_msb = attn_msb.softmax(dim=-1)
-        mask = self.gt.apply(attn_msb.abs(), self.threshold)
+        mask = self.gt.apply(attn_msb.abs(), attn_msb.std() * self.threshold)
         return mask

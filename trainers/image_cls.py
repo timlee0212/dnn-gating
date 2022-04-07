@@ -137,7 +137,7 @@ class imgCls(Trainer):
                             loss=losses_m, top1=top1_m, top5=top5_m))
                 #Stop after certain iterations
                 if "n_iter" in kwargs.keys() and batch_idx>=kwargs["n_iter"]:
-                    self.cmd_logger.info("Stop evaluation in iteration {0} as directed!")
+                    self.cmd_logger.info("Stop evaluation in iteration {0} as directed!".format(kwargs['n_iter']))
                     break
         for plg in self.plugins:
             plg.evalTailHook(model, logger=self.logger,

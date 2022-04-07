@@ -345,6 +345,8 @@ class PGAttentionLeVit(levit.Attention):
         pgattn = cls(dim, leAttn.key_dim, leAttn.num_heads, leAttn.attn_ratio,
                      leAttn.proj[0].__class__, use_conv=leAttn.use_conv, **kwargs)
 
+        pgattn.qkv = leAttn.qkv
+        pgattn.proj = leAttn.proj
         # Now we copy the weights
         pgattn.qkv.c = QConv2d.copyConv(leAttn.qkv.c, wbits=kwargs['wbits'], abits=kwargs['abits']) \
             if pgattn.use_conv else QLinear.copyLinear(leAttn.qkv.c, wbits=kwargs['wbits'], abits=kwargs['abits'])
@@ -353,11 +355,11 @@ class PGAttentionLeVit(levit.Attention):
             if pgattn.use_conv else QLinear.copyLinear(leAttn.proj[1].c, wbits=kwargs['wbits'], abits=kwargs['abits'])
 
         #Now we copy BN
-        pgattn.qkv.bn = leAttn.qkv.bn
-        pgattn.proj[1].bn = leAttn.proj[1].bn
+        # pgattn.qkv.bn = leAttn.qkv.bn
+        # pgattn.proj[1].bn = leAttn.proj[1].bn
 
         # Recopy the buffer
-        pgattn.attention_biases = nn.Parameter(leAttn.attention_biases.clone())
+        pgattn.attention_biases = leAttn.attention_biases#nn.Parameter(leAttn.attention_biases.clone())
         delattr(pgattn, "attention_bias_idxs")
         pgattn.register_buffer("attention_bias_idxs", leAttn.attention_bias_idxs.clone())
         pgattn.ab = leAttn.ab
@@ -373,7 +375,7 @@ class PGAttentionLeVit(levit.Attention):
             qkv = self.quantize_a(self.qkv(x).view(
                 B, self.num_heads, -1, H * W)).split([self.key_dim, self.key_dim, self.d], dim=2)
             q, k, v = qkv[0], qkv[1], qkv[2]
-            self.mask = self._gen_mask(q, k)
+            self.mask = self._gen_mask(q, k, x.device)
 
             attn = (q.transpose(-2, -1) @ k) * self.scale + \
                    self.get_attention_biases(x.device)
@@ -388,7 +390,7 @@ class PGAttentionLeVit(levit.Attention):
             q = q.permute(0, 2, 1, 3)
             k = k.permute(0, 2, 1, 3)
             v = v.permute(0, 2, 1, 3)
-            self.mask = self._gen_mask(q, k)
+            self.mask = self._gen_mask(q, k, x.device)
 
             attn = q @ k.transpose(-2, -1) * self.scale + \
                    self.get_attention_biases(x.device)
@@ -401,11 +403,11 @@ class PGAttentionLeVit(levit.Attention):
         self.num_high = torch.sum(self.mask).item()
         return x
 
-
-    def _gen_mask(self, q, k):
+    @torch.no_grad()
+    def _gen_mask(self, q, k, device):
         q_msb = self.quantize_MSB(q)
         k_msb = self.quantize_MSB(k)
-        attn_msb = (q_msb @ k_msb.transpose(-2, -1)) * self.scale
+        attn_msb = (q_msb @ k_msb.transpose(-2, -1)) * self.scale + self.get_attention_biases(device)
         # attn_msb = self.quantize_noise(attn_msb)
         attn_msb = attn_msb.softmax(dim=-1)
         mask = self.gt.apply(attn_msb, self.threshold)
@@ -448,10 +450,13 @@ class PGAttentionSubsampleLeVit(levit.AttentionSubsample):
                      leAttnSS.proj[0].__class__, resolution=leAttnSS.resolution, resolution_=leAttnSS.resolution_,
                      stride=leAttnSS.stride, use_conv=leAttnSS.use_conv, **kwargs)
         # Now we copy the weights
-        pgattn.attention_biases = nn.Parameter(leAttnSS.attention_biases.clone())
+        pgattn.attention_biases = leAttnSS.attention_biases#nn.Parameter(leAttnSS.attention_biases.clone())
         delattr(pgattn, "attention_bias_idxs")
         pgattn.register_buffer("attention_bias_idxs", leAttnSS.attention_bias_idxs.clone())
         pgattn.ab = leAttnSS.ab
+        pgattn.proj = pgattn.proj
+        pgattn.q = pgattn.q
+        pgattn.proj = pgattn.proj
         pgattn.kv.c = QConv2d.copyConv(leAttnSS.kv.c, wbits=kwargs['wbits'], abits=kwargs['abits']) \
             if pgattn.use_conv else QLinear.copyLinear(leAttnSS.kv.c, wbits=kwargs['wbits'], abits=kwargs['abits'])
         pgattn.q[1].c = QConv2d.copyConv(leAttnSS.q[1].c, wbits=kwargs['wbits'], abits=kwargs['abits']) \
@@ -476,13 +481,13 @@ class PGAttentionSubsampleLeVit(levit.AttentionSubsample):
             k, v = kv[0], kv[1]
             q = self.quantize_a(self.q(x).view(
                 B, self.num_heads, self.key_dim, self.resolution_2))
-            self.mask = self._gen_mask(q, k)
+            self.mask = self._gen_mask(q, k, x.device)
 
             attn = (q.transpose(-2, -1) @ k) * self.scale + \
                    self.get_attention_biases(x.device)
             attn = (attn * self.mask).softmax(dim=-1)
 
-            #attn = self.quantize_a(attn)
+            attn = self.quantize_a(attn)
             x = (v @ attn.transpose(-2, -1)).reshape(B, - \
                 1, self.resolution_, self.resolution_)
         else:
@@ -492,24 +497,25 @@ class PGAttentionSubsampleLeVit(levit.AttentionSubsample):
             v = v.permute(0, 2, 1, 3)
             q = self.quantize_a(self.q(x).view(
                 B, self.resolution_2, self.num_heads, self.key_dim).permute(0, 2, 1, 3))
-            self.mask = self._gen_mask(q, k)
+            self.mask = self._gen_mask(q, k, x.device)
 
             attn = q @ k.transpose(-2, -1) * self.scale + \
                    self.get_attention_biases(x.device)
             attn = (attn * self.mask).softmax(dim=-1)
 
-            #attn = self.quantize_a(attn)
+            attn = self.quantize_a(attn)
             x = (attn @ v).transpose(1, 2).reshape(B, -1, self.dh)
         x = self.proj(x)
         self.num_out = self.mask.numel()
         self.num_high = torch.sum(self.mask).item()
         return x
 
-    def _gen_mask(self, q, k):
+    @torch.no_grad()
+    def _gen_mask(self, q, k, device):
         q_msb = self.quantize_MSB(q)
         k_msb = self.quantize_MSB(k)
-        attn_msb = (q_msb @ k_msb.transpose(-2, -1)) * self.scale
+        attn_msb = (q_msb @ k_msb.transpose(-2, -1)) * self.scale + self.get_attention_biases(device)
         # attn_msb = self.quantize_noise(attn_msb)
         attn_msb = attn_msb.softmax(dim=-1)
-        mask = self.gt.apply(attn_msb.abs(), attn_msb.std() * self.threshold)
+        mask = self.gt.apply(attn_msb.abs(), self.threshold)
         return mask

@@ -254,7 +254,7 @@ class PGAttentionPVT(PGAttention):
         super().__init__(dim, num_heads, qkv_bias, attn_drop, proj_drop, wbits, abits, pgabits, sparse_bp, th)
         delattr(self, "qkv")
         
-        self.scale = qk_scale or num_heads ** -0.5
+        self.scale = qk_scale or (dim//num_heads) ** -0.5
         self.q = QLinear(dim, dim, bias=qkv_bias, wbits=wbits, abits=abits)
         self.kv = QLinear(dim, dim * 2, bias=qkv_bias, wbits=wbits, abits=abits)
 

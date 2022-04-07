@@ -77,7 +77,7 @@ class precisionGating(Plugin):
 
     def evalIterHook(self, model, iter_id, logger=None):
         for n, m in model.named_modules():
-            if isinstance(m, (PGConv2d, PGAttention)):
+            if isinstance(m, (PGConv2d, PGAttention, PGAttentionLeVit, PGAttentionPVT, PGAttentionSubsampleLeVit)):
                 self.cmd_logger.debug("Layer {0}, out: {1}, high: {2}".format(n, m.num_out, m.num_high))
                 if n not in self.cnt_out.keys():
                     self.cnt_out[n] = m.num_out

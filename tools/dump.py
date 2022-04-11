@@ -28,23 +28,28 @@ class Dumper(Inspector):
             self.attn_log[name]['mask'] = module.mask.detach(
             ).cpu().numpy().astype(bool)
         
-        def _dump_linear_shape(module, input, output, name, attn_name):
-            self.attn_log[attn_name][name] = {
+        def _dump_linear_shape(module, input, output, name, block_name):
+            self.attn_log[block_name][name] = {
                 "in_shape" : input[0].shape[1:],
                 "out_shape" : output[0].shape[1:]
             }
 
         #We first get all 
         for n, m in self.model.named_modules():
-            if isinstance(m, PGAttention):
+            #This is hardcoded for vit-based models
+            if hasattr(m, "attn") and hasattr(m, "mlp"):
                 self.attn_log[n] = {}
-                m.register_forward_hook(functools.partial(_dump_mask, name=n))
+                m.attn.register_forward_hook(functools.partial(_dump_mask, name=n))
+
+                m.mlp.fc1.register_forward_hook(functools.partial(_dump_linear_shape, name="ffn.fc1", block_name=n))
+                m.mlp.fc2.register_forward_hook(functools.partial(_dump_linear_shape, name="ffn.fc2", block_name=n))
 
                 #Hardcoded Rule for our candidate models
                 ln_name = ['q', 'k', 'v', 'qk', 'kv', 'qv', 'qkv', 'proj']
                 for name in ln_name:
-                    if hasattr(m, name):
-                        getattr(m, name).register_forward_hook(functools.partial(_dump_linear_shape, name=name, attn_name=n))
+                    if hasattr(m.attn, name):
+                        getattr(m.attn, name).register_forward_hook(functools.partial(_dump_linear_shape, name="attn."+name, block_name=n))
+
 
     # Override the run function
     def run(self):

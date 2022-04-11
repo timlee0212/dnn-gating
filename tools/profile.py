@@ -27,8 +27,7 @@ class Profiler(Inspector):
 
         def _dump_input(module, input, output, name):
             # Convert to bool type to save space
-            self.attn_input[name] = torch.unsqueeze(
-                input[0][0, :, :], 0).detach().cpu()
+            self.attn_input[name] = list(input)
 
         for n, m in self.model.named_modules():
             if isinstance(m, _candi_list):
@@ -45,9 +44,12 @@ class Profiler(Inspector):
             if n in self.attn_input.keys():
                 # Time the attention
                 if not use_cpu:
-                    self.attn_input[n] = self.attn_input[n].to('cuda')
-                attn_timer = Timer(stmt="module(input)", globals={
-                                   "module": m, "input": self.attn_input[n]})
+                    #TODO:FIX TEMP SOLUTION
+                    self.attn_input[n][0] = self.attn_input[n][0].detach()
+                else:
+                    self.attn_input[n][0] = self.attn_input[n][0].detach().cpu()
+                attn_timer = Timer(stmt="module(*input)", globals={
+                    "module": m, "input": [torch.unsqueeze(self.attn_input[n][0][0, :, :],0), *self.attn_input[n][1:]] })
                 self.cmd_logger.info("Testing {0}...".format(n))
                 attn_lat[n] = attn_timer.timeit(100).mean
                 self.cmd_logger.info(

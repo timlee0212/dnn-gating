@@ -1,126 +1,104 @@
-# dnn-gating
+# Sanger
 
-```dnn-gating``` is a collective repository of [precision-gating](https://arxiv.org/abs/2002.07136) and [channel-gating](https://arxiv.org/abs/1805.12549) reimplemented in Pytorch.
+This repository implements the proposed framework in the paper Sanger: A Co-Design Framework for Enabling Sparse Attention using Reconfigurable Architecture (MICRO'21)
 
-## Precision Gating (PG)
+## Overview
 
-### Requirments of PG
+Sanger, a framework that harvests sparsity in the attention mechanism through synergistic hardware and software co-design. The software part prunes the attention matrix into a dynamic structured pattern, and the hardware part features a reconfigurable architecture that exploits such pattern.
 
-```
-python 3.6.8
-torch >= 1.3.0
-numpy 1.16.4
-matplotlib 3.1.0
-```
+## Getting Started
 
-### Usage
+### Requirements
 
-With this repo, you can:
-  - Evaluate uniform quantization and [PACT](https://arxiv.org/abs/1805.06085).
-  - Evaluate PG on ResNet CIFAR-10.
-  - Apply PG to your own models and datasets.
+-  For software experiments
+   -  CUDA SDK >= 10.1
+   -  Python >= 3.7
+   -  PyTorch >= 1.7.0
+   -  :hugs: Transformers 4.7.0
+-  For hardware experiments
+   -  JDK 8 or 11
+   -  Scala compiler `sbt`. You can download it from [here](https://www.scala-sbt.org/).
 
-##### Example
-The following example trains ResNet-20 on CIFAR-10 with activations quantized to 3 bits, 2 MSBs out of which for prediction.
+### Installation
 
-```sh
-$ cd scripts
-$ source train_pg_pact.sh
-```
+1.  Clone or download this repository
+2.  Download the CLOTH dataset from [here](https://www.cs.cmu.edu/~glai1/data/cloth/) to `data/cloth`
+3.  Create a virtual environment (either [virtualenv](https://virtualenv.pypa.io/en/latest/) or [conda](https://docs.anaconda.com/anaconda/install/index.html)) with a Python version of at least 3.7.
+4.  Install dependent Python packages: `pip install -r requirements.txt`
+5.  Set relevant environment variables
+    1.  `export PROJ_ROOT=<path-to-this-repo>`
+    2.  `export WANDB_ENABLED=true` to enable [wandb](https://docs.wandb.ai/quickstart) logging (optional)
 
-##### Specify the Flags
+## Experiment Workflow
 
-Make sure to tune the training parameters in to achieve a good model prediction accuracy.
-```
-  -w : bitwidth of weights (floating-point if set to 0)
-  -a : bitwidth of activations (floating-point if set to 0)
-  -pact : use parameterized clipping for activatons
-  -pg : use PG
-  -pb : prediction bitwidth (only valid if -pg is turned on, and the bitwidth of prediction must smaller than that of activations)
-  -gtar : the gating target
-  -sg : the penalty factor on the gating loss
-  -spbp : use sparse back-prop
-```
+### Hardware experiments
 
-## Channel Gating (CG)
+1.  Run the tests. 
+    1.  `cd` into the `hardware/` directory, run `sbt` and type `test` into the `sbt` console.
+2.  Check the result. 
+    -  The tests generate random data and the corresponding control signals for the three modules. 
+    -  The output of the modules is compared with a directly computed ground truth. 
+    -  The relative error should be below a threshold of 5%, which does not affect the final accuracy.
 
-### Requirments of CG
-```
-python 2.7.12
-torch 1.1.0
-numpy 1.16.4
-matplotlib 2.1.0
-```
-### Usage
+### Software experiments
 
-With this repo, you can:
-  - Evaluate CG on ResNet CIFAR-10 (both the original and modified post-activated ResNets).
-  - The post-activated ResNet allows applying channel gating to all convolutional layers in a residual module.
-  - Apply CG to your own models and datasets.
+1.  Evaluate Sanger performance
 
-##### Example
-The following examples use one fourth and half of input channels in the base path for the original and post-activated ResNets, respectively.
+    1.  Train a model with Sanger sparse attention. 
 
-```sh
-$ cd scripts
-$ source train_cg.sh
-$ source train_cg_postact.sh
-```
+        We provide scripts for training in the `scripts/` sub-directory. For example, to train a Sanger-pruned BERT-Base model on SQuAD, you can execute `scripts/train_sparse_on_squad.sh`. Note that you have to pass in an appropriate configuration file, which you can find in `configs/`. You can skip this step if you choose to load a fine-tuned checkpoint directly.
 
-##### Specify the Flags
+    2.  Evaluate the fine-tuned model. 
 
-The training parameters can be tuned to achieve different FLOP reduction and model accuracy.
-```
-  -lr : initial learning rate
-  -wd: weigth decaying factor
-  -pt: use 1/pt fraction of channels for prediction
-  -gi: the intital value of gating thresholds
-  -gtar: the target value of gating thresholds
-  -spbp : use sparse back-prop
-  -group: use group conv in the base path
-  -cg : use CG
-  -postact: use post-activated ResNet
-```
+        We also provide scripts for evaluation in `scripts/`. For example, to evaluate the sparse model from the last step, you can execute `scripts/eval_sparse_on_squad.sh`. If you need to load a checkpoint from a non-standard location, be sure to change the path in the script. When the evaluation is complete, the script should print out the accuracy.
 
-## Apply PG/CG to Your Own Models & Datasets
+    3.  Measure sparsity and load balance. 
 
-The following steps allows you to apply PG/CG to your own models.
-  1. Copy the model file to ```model/```.
-  2. Import ```utils/pg_utils.py``` /```utils/cg_utils.py``` in the model file, replace convolutional layers followed by activation functions with the ```PGConv2d```/ ```CGConv2d```  module.
-  3. Import ```model/your_model.py``` in the ```generate_model()``` function in ```pg-cifar10.py```/ ```cg-cifar10.py```.
+        Each evaluation script contains a flag that enables measuring the sparsity level of attention and calculating the load balance of the PE array. If you set this flag in the previous step, the script will log the results to a CSV file named `load_balance.csv` during evaluation.
 
-If you prepare your own training scripts, remember to add the **gating loss** to the model prediction loss before doing back-prop.
+    4.  Estimate the hardware performance of Sanger. 
 
-##### Note
-  - The way of exporting sparsity in the update phase we are using is only valid while training on a single GPU. This is because Pytorch modifies each model replica on a GPU instead of a global model if ```DataParallel``` is activated. For multi-GPU training, we suggest users turn off the sparsity printing during training, save the trained model, and print the sparsity only when testing.
+        We implement a simple simulator in `bench_sanger.py` that estimates the latency of executing an attention layer on Sanger, given average sparsity and load balance. Executing this Python script will read the CSV file generated in the previous step, and print the average sparsity, load balance and estimated latency.
+
+2.  Comparison with dense attention and static sparse attention.
+
+    1.  Train a model with dense or static sparse attention. 
+
+        We provide dedicated scripts for train models with dense attention (e.g. `scripts/train_dense_on_squad.sh`). To train a model with static sparse attention, you can use the same script as Sanger and pass in an appropriate configuration file (e.g. `bert_base_longformer.json`).
+
+    2.  Evaluate the fine-tuned model. 
+
+        The process is similar to evaluating Sanger models. Note that you also need to use different scripts when evaluating dense models.
+
+3.  Comparison with CPU and GPU.
+
+    You can measure the latency of dense attention on CPU and GPU by executing `bench_cpu_gpu.py`.
+
+## Internals
+
+-  `configs/`: This sub-directory contains configuration files for dense models, sparse models, and static sparsity (BigBird, Longformer, etc.).
+-  `data/`: This sub-directory is intended for storing manually downloaded datasets. Only the CLOTH dataset needs to be stored here, because GLUE and SQuAD are downloaded and managed automatically by the :hugs: ​transformers library.
+-  `hardware/`: This sub-directory holds code related to the hardware implementation of Sanger. For the sake of clarity, we will describe this part separately in the next section.
+   -  `src/main/scala/pe_row`: This sub-directory contains the main source code of the three hardware modules:
+      -  `pe_row.scala`: The reconfigurable sparse PE array for computing SDDMM and SpMM.
+      -  `mask.scala`: The dense low-bit PE array which produce the attention mask.
+      -  `pack.scala`: The pack module which convert the attention mask to the configuration of the sparse PE array.
+   -  `src/test/scala/pe_row`: This sub-directory contains the unit tests for the hardware modules.
+      -  `pe_row_test.scala`: Unit test for the sparse PE array.
+      -  `mask_test.scala`: Unit test for the dense PE array.
+      -  `pack_text.scala`: Unit test for the pack module.
+-  `outputs/`: This sub-directory is intended for storing training and evaluation results.
+-  `scripts/`: This sub-directory holds the shell scripts for running experiments.
+-  `bench_cpu_gpu.py`: This script benchmarks dense attention on CPU and GPU.
+-  `bench_sanger.py`: This script is used to simulate the hardware performance of Sanger.
+-  `modeling_<​​​​model>​​​.py`: These files contain implementations of the BERT, GPT2 and BART models, supporting both dense and sparse attention.
+-  `modeling_sanger_attn.py`: This file contains an implementation of the sparse attention algorithm of Sanger, and some helper functions for measuring sparsity and load balance.
+-  `modeling_static_spattn.py`: This file implements some attention mechanisms with static sparsity.
+-  `run_<task>​​​​​​​.py`: These files are intended for training or evaluating models on GLUE, SQuAD or CLOTH.
+-  `quant_utils.py`: This file contains some helper functions related to quantization.
 
 
 
-### Citation
-If you use CG or PG in your research, please cite our NeurIPS'19 and ICLR'20 papers.
+## Citation
 
-**Channel Gating Neural Networks**
-```
-
-@incollection{NIPS2019_8464,
-title = {Channel Gating Neural Networks},
-author = {Hua, Weizhe and Zhou, Yuan and De Sa, Christopher M and Zhang, Zhiru and Suh, G. Edward},
-booktitle = {Advances in Neural Information Processing Systems 32},
-editor = {H. Wallach and H. Larochelle and A. Beygelzimer and F. d\textquotesingle Alch\'{e}-Buc and E. Fox and R. Garnett},
-pages = {1886--1896},
-year = {2019},
-publisher = {Curran Associates, Inc.},
-url = {http://papers.nips.cc/paper/8464-channel-gating-neural-networks.pdf}
-}
-```
-**Precision Gating: Improving Neural Network Efficiency with Dynamic Dual-Precision Activations**
-```
-@inproceedings{
-Zhang2020Precision,
-title={Precision Gating: Improving Neural Network Efficiency with Dynamic Dual-Precision Activations},
-author={Yichi Zhang and Ritchie Zhao and Weizhe Hua and Nayun Xu and G. Edward Suh and Zhiru Zhang},
-booktitle={International Conference on Learning Representations},
-year={2020},
-url={https://openreview.net/forum?id=SJgVU0EKwS}
-}
-```
+Liqiang Lu, Yicheng Jin, Hangrui Bi, Zizhang Luo, Peng Li, Tao Wang, Yun Liang. Sanger: A Co-Design Framework for Enabling Sparse Attention using Reconfigurable Architecture. The 54th International Symposium on Microarchitecture (MICRO’21), 2021.

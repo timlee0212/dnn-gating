@@ -21,6 +21,7 @@ import os
 import warnings
 from dataclasses import dataclass
 from typing import Optional, Tuple
+import numpy as np
 
 import torch
 import torch.utils.checkpoint
@@ -90,6 +91,7 @@ BERT_PRETRAINED_MODEL_ARCHIVE_LIST = [
     "TurkuNLP/bert-base-finnish-cased-v1",
     "TurkuNLP/bert-base-finnish-uncased-v1",
     "wietsedv/bert-base-dutch-cased",
+    "albert-base-v2"
     # See all BERT models at https://huggingface.co/models?filter=bert
 ]
 
@@ -235,11 +237,18 @@ class BertSelfAttention(nn.Module):
         #For Calculating Sparsity
         self.cnt_out = 0
         self.cnt_high = 0
+
+        #Backup config
+        self.config = config
         
         do_quant = getattr(config, 'quant_qk', False)
         if do_quant:
-            self.quant_matmul = build_quant_matmul(config)
+            self.msb_quant_matmul = build_quant_matmul(config)
+
+            config.quant_qk['bitwidth'] = 8
             self.v_quant_matmul = build_quant_matmul(config)
+            self.qk_quant_matmul = build_quant_matmul(config)
+
 
         if getattr(config, 'static_sparsity', False):
             sparsity_mask = build_static_sparsity_mask(
@@ -249,7 +258,7 @@ class BertSelfAttention(nn.Module):
             )
             self.register_buffer('static_sparsity_mask', sparsity_mask)
 
-        self.config = config
+
 
     def transpose_for_scores(self, x):
         new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attention_head_size)
@@ -279,14 +288,17 @@ class BertSelfAttention(nn.Module):
         do_quant = getattr(self.config, 'quant_qk', False)
         do_prune = getattr(self.config, 'prune_score', False)
 
-        attention_scores = torch.matmul(query_layer, key_layer)
-        attention_scores = attention_scores / math.sqrt(self.attention_head_size)
-
         if do_quant:
-            quant_attention_scores = quant_qk_matmul(query_layer, key_layer, self.config, self.quant_matmul)
+            quant_attention_scores = quant_qk_matmul(query_layer, key_layer, self.config, self.msb_quant_matmul)
             quant_attention_scores = quant_attention_scores / math.sqrt(self.attention_head_size)
+
+            #8-bit Quantization for qk
+            attention_scores =  self.msb_quant_matmul(query_layer, key_layer)
+            attention_scores = attention_scores / math.sqrt(self.attention_head_size)
         else:
             quant_attention_scores = None
+            attention_scores =  torch.matmul(query_layer, key_layer)
+            attention_scores = attention_scores / math.sqrt(self.attention_head_size)
 
         if do_prune:
             attn_scores = quant_attention_scores if do_quant else attention_scores 
@@ -296,8 +308,13 @@ class BertSelfAttention(nn.Module):
             #Calculate the sparsity during evaluation
             if not self.training:
                 attn_mask = (attention_scores > -1).float()
+                #Buffer Mask for Dump
+                self.attn_mask = attn_mask
                 self.cnt_out += attn_mask.numel()
                 self.cnt_high+= attn_mask.sum().item()
+
+                #Log Seq Length
+                self.linear_size = np.array([[seq_len, self.config.hidden_size] for seq_len in torch.sum(attention_mask.squeeze()> -1, dim=1).detach().cpu().numpy()])
                 #print(f"Out: {self.cnt_out} High: {self.cnt_high} Spar:{self.cnt_high/self.cnt_out :.4f}")
 
         # if getattr(self.config, 'normalize_qk', False):

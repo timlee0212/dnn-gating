@@ -208,6 +208,65 @@ class PGSparsityCallback(TrainerCallback):
     def on_evaluate(self, args, state, control, **kwargs):
          print(f"eval average sparsity: {(1-(self.cnt_high / self.cnt_out))*100:.3f}")
 
+from modeling_bert import BertSelfAttention
+
+class PGMaskDumpCallback(TrainerCallback):
+    def __init__(self, model, export_path, model_name, config):
+        self.export_path = export_path
+        self.model = model
+        self.attn_dump = {}
+        self.attn_shape = {}
+        self.config = config
+        self.model_name = model_name
+        for n, m in self.model.named_modules():
+            if isinstance(m ,BertSelfAttention):
+                self.attn_dump[n] = []
+                self.attn_shape[n] = []
+
+    def on_epoch_begin(self, args, state, control, **kwargs):
+        for key in self.attn_dump.keys():
+            self.attn_dump[key] = []
+            self.attn_shape[key] = []
+    
+    def on_prediction_step(self, args, state, control, **kwargs):
+        for n, m in self.model.named_modules():
+            if isinstance(m ,BertSelfAttention):
+                self.attn_dump[n].append(m.attn_mask.detach().cpu().numpy())
+                self.attn_shape[n].append(m.linear_size)
+    
+    def on_evaluate(self, args, state, control, **kwargs):
+        print("Dumping saved masks")
+        print("Randomly select 10 samples...")
+        output_dict = {}
+        for name, layer in self.attn_dump.items():
+            all_samples = np.concatenate(layer, 0)
+            all_shapes = np.concatenate(self.attn_shape[name], 0)
+            sel_idx = np.random.choice(all_samples.shape[0], 10)
+            intermediate_shapes = all_shapes[sel_idx, :]
+            intermediate_shapes[:, 1] = self.config.intermediate_size
+
+            output_dict[name] = {
+                "mask": all_samples[sel_idx, :, :, :],
+                "attn.qkv": {
+                    "input_shape": all_shapes[sel_idx, :],
+                    "output_shape": all_shapes[sel_idx, :]
+                },
+                "attn.proj":{
+                    "input_shape": all_shapes[sel_idx, :],
+                    "output_shape": all_shapes[sel_idx, :]
+                },
+                "ffn.fc1": {
+                     "input_shape": all_shapes[sel_idx, :],
+                    "output_shape": intermediate_shapes
+                },
+                "ffn.fc2": {
+                     "input_shape": intermediate_shapes,
+                    "output_shape": all_shapes[sel_idx, :]
+                },
+            }
+        np.save(os.path.join(self.export_path, self.model_name+"_dump.npy"), output_dict)
+
+
 
 def main():
     # See all possible arguments in src/transformers/training_args.py
@@ -217,6 +276,10 @@ def main():
     parser = HfArgumentParser((ModelArguments, DataTrainingArguments, TrainingArguments))
     parser.add_argument("--eval_checkpoint", default=None, type=str, required=False, 
                     help="Explicitly specify the checkpoint to be evaluated")
+    parser.add_argument("--dump-path", default=None, type=str, required=False, 
+                    help="The path to dump file")
+    parser.add_argument("--do_dump", default=False, action="store_true", 
+                    help="Dump the attention mask for hardware evaluation")
 
     if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
         # If we pass only one argument to the script and it's the path to a json file,
@@ -372,7 +435,7 @@ def main():
 
     if is_sparse_model:
         model_name = model_args.model_name_or_path[len('sparse-'):]
-        if model_name.startswith('bert'):
+        if 'bert' in model_name:
             from modeling_bert import BertForSequenceClassification
             SparseModelClass = BertForSequenceClassification
         elif model_name.startswith('gpt2'):
@@ -539,9 +602,15 @@ def main():
         eval_dataset=eval_dataset if training_args.do_eval else None,
         compute_metrics=compute_metrics,
         tokenizer=tokenizer,
-        data_collator=data_collator,
-        callbacks=[PGSparsityCallback(model)]
+        data_collator=data_collator
     )
+
+    if is_sparse_model:
+        trainer.add_callback(PGSparsityCallback(model))
+        if args.do_dump:
+            dump_path = args.dump_path if args.dump_path else training_args.output_dir
+            trainer.add_callback(PGMaskDumpCallback(model, model_name,dump_path, config))
+            print(model_name)
 
     # Training
     if training_args.do_train:

@@ -1,9 +1,9 @@
 #!/bin/bash
 export CONFIG_ROOT=$PROJ_ROOT/configs
 
-task_name=${1:-"sst2"}
+task_name=${1:-"mrpc"}
 model_name=${2:-"bert-base-uncased"}
-model_config=${3:-"bert_base_sanger_2e-2.json"}
+model_config=${3:-"bert_base_sanger_2e-3.json"}
 num_train_epochs=${4:-"3"}
 learning_rate=${5:-"2e-5"}
 batch_size=${6:-"32"}

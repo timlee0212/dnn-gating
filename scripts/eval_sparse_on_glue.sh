@@ -16,6 +16,7 @@ python run_glue.py \
     --config_name $CONFIG_ROOT/$model_config \
     --task_name $task_name \
     --do_eval \
+    --do_dump \
     --max_seq_length 128 \
     --eval_checkpoint $output_dir/sparse-$(basename $model_name)_$task_name/pytorch_model.bin \
-    --output_dir $output_dir/sparse-$(basename $model_name)_$task_name/
+    --output_dir $output_dir/sparse-$(basename $model_name)_$task_name/ 

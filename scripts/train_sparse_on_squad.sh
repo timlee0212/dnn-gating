@@ -3,7 +3,7 @@ export CONFIG_ROOT=$PROJ_ROOT/configs
 
 model_name=${1:-"bert-base-uncased"}
 model_config=${2:-"bert_base_sanger_2e-3.json"}
-num_train_epochs=${3:-"2"}
+num_train_epochs=${3:-"3"}
 learning_rate=${4:-"3e-5"}
 batch_size=${5:-"12"}
 output_dir=${6:-"$PROJ_ROOT/outputs/squad"}

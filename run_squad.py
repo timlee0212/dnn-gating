@@ -517,6 +517,33 @@ class PGSparsityCallback(TrainerCallback):
     def on_evaluate(self, args, state, control, **kwargs):
          print(f"eval average sparsity: {(1-(self.cnt_high / self.cnt_out))*100:.3f}")
 
+
+from modeling_bert import BertSelfAttention
+
+class PGMaskDumpCallback(TrainerCallback):
+    def __init__(self, model, export_path):
+        self.export_path = export_path
+        self.model = model
+        self.attn_dump = {}
+
+    def on_epoch_begin(self, args, state, control, **kwargs):
+        self.attn_dump = {}
+        for n, m in self.model.named_modules():
+            if isinstance(m ,BertSelfAttention):
+                self.attn_dump[n] = []
+    
+    def on_prediction_step(self, args, state, control, **kwargs):
+        for n, m in self.model.named_modules():
+            if isinstance(m ,BertSelfAttention):
+                self.attn_dump[n].append(m.attn_mask)
+                print(m.attn_mask.shape)
+    
+    def on_evaluate(self, args, state, control, **kwargs):
+        print("Dumping saved masks")
+        print("Randomly select 10 samples...")
+
+    
+
 def main():
     # See all possible arguments in src/transformers/training_args.py
     # or by passing the --help flag to this script.
@@ -918,8 +945,11 @@ def main():
         data_collator=data_collator,
         post_process_function=post_processing_function,
         compute_metrics=compute_metrics,
-        callbacks=[PGSparsityCallback(model)]
+        callbacks=[]
     )
+    if is_sparse_model:
+        trainer.add_callback(PGSparsityCallback(model))
+        trainer.add_callback(PGMaskDumpCallback(model, "."))
 
     # Training
     if training_args.do_train:

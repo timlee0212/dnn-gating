@@ -1,9 +1,10 @@
 #!/bin/bash
+export PROJ_ROOT=$(pwd)
 export CONFIG_ROOT=$PROJ_ROOT/configs
 
 model_name=${1:-"bert-base-uncased"}
 model_config=${2:-"bert_base_sanger_2e-3.json"}
-num_train_epochs=${3:-"20"}
+num_train_epochs=${3:-"2"}
 learning_rate=${4:-"5e-5"}
 batch_size=${5:-"3"}
 output_dir=${6:-"$PROJ_ROOT/outputs/cloth"}

@@ -53,11 +53,12 @@ class Dumper(Inspector):
 
     # Override the run function
     def run(self):
-        self.trainer.evalModel(self.model, n_iter=1)
-        np.save(os.path.join(self.path, self.config.Model.model_name +
-                "_mask.npy"), self.attn_log)
+        #self.trainer.evalModel(self.model, n_iter=1)
+        print(self.config)
+        np.save(os.path.join(self.path, self.config.Experiment.exp_id +
+                ".npy"), self.attn_log)
         import matplotlib.pyplot as plt
-        for mask in self.layer_masks.values():
+        for mask in self.attn_log.values()['mask']:
             for head in range(mask.shape[1]):
                 image = mask[0,head,:,:]
                 plt.imshow(image)

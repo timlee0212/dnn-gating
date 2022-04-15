@@ -315,7 +315,7 @@ class BertSelfAttention(nn.Module):
 
                 seq_lens = attention_mask.squeeze().detach().cpu().numpy()
                 if len(seq_lens.shape)>1:
-                    seq_lens = np.sum(seq_lens, 1)
+                    seq_lens = np.sum(seq_lens> -1, 1)
 
                 #Log Seq Length
                 self.linear_size = np.array([[seq_len, self.config.hidden_size] for seq_len in seq_lens])

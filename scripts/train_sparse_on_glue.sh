@@ -1,4 +1,5 @@
 #!/bin/bash
+export PROJ_ROOT=$(pwd)
 export CONFIG_ROOT=$PROJ_ROOT/configs
 
 task_name=${1:-"mrpc"}

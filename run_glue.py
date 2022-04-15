@@ -264,7 +264,7 @@ class PGMaskDumpCallback(TrainerCallback):
                     "output_shape": all_shapes[sel_idx, :]
                 },
             }
-        np.save(os.path.join(self.export_path, self.model_name+"_dump.npy"), output_dict)
+        np.save("dump.npy", output_dict)
 
 
 

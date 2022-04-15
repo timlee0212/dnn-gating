@@ -199,14 +199,14 @@ class PGSparsityCallback(TrainerCallback):
         self.cnt_high = 0
         self.cnt_out = 0
     
-    def on_prediction_step(self, args, state, control, **kwargs):
+    def on_evaluate(self, args, state, control, **kwargs):
         for n, m in self.model.named_modules():
             if hasattr(m, "cnt_out"):
                 self.cnt_high += m.cnt_high
                 self.cnt_out += m.cnt_out
-    
-    def on_evaluate(self, args, state, control, **kwargs):
-         print(f"eval average sparsity: {(1-(self.cnt_high / self.cnt_out))*100:.3f}")
+        print(f"eval average sparsity: {(1-(self.cnt_high / self.cnt_out))*100:.3f}")
+        self.cnt_high = 0
+        self.cnt_out = 0
 
 from modeling_bert import BertSelfAttention
 

@@ -2,6 +2,7 @@ import json
 import os
 import argparse
 from pathlib import Path
+import numpy as np
 
 from tqdm import tqdm
 
@@ -244,7 +245,7 @@ def load_model_and_tokenizer(args):
             args.model_name_or_path, from_tf=False, config=config,
         )
     
-    return model, tokenizer
+    return model, tokenizer, config
 
 
 def build_optimizer(args, model):
@@ -277,7 +278,7 @@ def build_optimizer(args, model):
 
 
 def test(args):
-    model, tokenizer = load_model_and_tokenizer(args)
+    model, tokenizer, _ = load_model_and_tokenizer(args)
     test_loader = load_cloth_dataset(args, tokenizer, mode="test")
 
     model = model.cuda().eval()
@@ -306,7 +307,7 @@ def test(args):
 
 def train(args):
     """training"""
-    model, tokenizer = load_model_and_tokenizer(args)
+    model, tokenizer, _ = load_model_and_tokenizer(args)
     optimizer = build_optimizer(args, model)
     train_loader, val_loader = load_cloth_dataset(args, tokenizer, mode="train")
 
@@ -375,7 +376,7 @@ def train(args):
 
             writer.add_scalar("eval_acc", correct / total, epoch + 1)
         print("epoch %d acc: %f" % (epoch + 1, correct / total))
-        print(f"eval average sparsity: {cnt_high / cnt_out:.3f}")
+        print(f"eval average sparsity: {100 - (cnt_high / cnt_out) * 100.:.3f}")
         
         torch.save(
             {
@@ -388,7 +389,7 @@ def train(args):
 
 
 def valid(args):
-    model, tokenizer = load_model_and_tokenizer(args)
+    model, tokenizer, config = load_model_and_tokenizer(args)
     val_loader = load_cloth_dataset(args, tokenizer, mode="eval")
 
     if args.eval_checkpoint is None:
@@ -406,10 +407,16 @@ def valid(args):
     correct = 0.0
     total = 0.0
 
+    attn_dump = {}
+    attn_shape = {}
+
     cnt_out = 0
     cnt_high = 0
+    from modeling_bert import BertSelfAttention
     for n,m in model.named_modules():
-        if hasattr(m, "cnt_out"):
+        if isinstance(m, BertSelfAttention):
+            attn_dump[n] = []
+            attn_shape[n] = []
             m.cnt_high = 0
             m.cnt_out = 0
     
@@ -431,11 +438,46 @@ def valid(args):
 
             for n,m in model.named_modules():
                 if hasattr(m, "cnt_out"):
+                    if args.do_dump:
+                        attn_dump[n].append(m.attn_mask.detach().cpu().numpy())
+                        attn_shape[n].append(m.linear_size)
                     cnt_high += m.cnt_high
                     cnt_out += m.cnt_out
 
     print(f"eval acc: {correct / total:.3f}")
-    print(f"eval average sparsity: {cnt_high / cnt_out:.3f}")
+    print(f"eval average sparsity: {100 - (cnt_high / cnt_out)*100.:.3f}")
+    if args.do_dump:
+        print("Dumping saved masks")
+        print("Randomly select 10 samples...")
+        output_dict = {}
+        for name, layer in attn_dump.items():
+            all_samples = np.concatenate(layer, 0)
+            all_shapes = np.concatenate(attn_shape[name], 0)
+            sel_idx = np.random.choice(all_samples.shape[0], 10)
+            intermediate_shapes = all_shapes[sel_idx, :]
+            intermediate_shapes[:, 1] = config.intermediate_size
+
+            output_dict[name] = {
+                "mask": all_samples[sel_idx, :, :, :],
+                "attn.qkv": {
+                    "in_shape": all_shapes[sel_idx, :],
+                    "out_shape": all_shapes[sel_idx, :]
+                },
+                "attn.proj":{
+                    "in_shape": all_shapes[sel_idx, :],
+                    "out_shape": all_shapes[sel_idx, :]
+                },
+                "ffn.fc1": {
+                        "in_shape": all_shapes[sel_idx, :],
+                    "out_shape": intermediate_shapes
+                },
+                "ffn.fc2": {
+                        "in_shape": intermediate_shapes,
+                    "out_shape": all_shapes[sel_idx, :]
+                },
+            }
+        dump_path = args.dump_path if args.dump_path else args.output_dir
+        np.save(os.path.join(dump_path,  args.config_name if args.config_name else args.model_name_or_path,+"_dump.npy"), output_dict)
 
 
 def main():
@@ -462,6 +504,11 @@ def main():
     parser.add_argument("--eval_checkpoint", default=None, type=str, required=False, 
                         help="Explicitly specify the checkpoint to be evaluated")
     parser.add_argument("--output_dir", default="./CKPT/", type=str, required=False)
+    parser.add_argument("--dump-path", default=None, type=str, required=False, 
+                    help="The path to dump file")
+    parser.add_argument("--do_dump", default=False, action="store_true", 
+                    help="Dump the attention mask for hardware evaluation")
+    
     args = parser.parse_args()
 
     if args.eval_checkpoint is not None:

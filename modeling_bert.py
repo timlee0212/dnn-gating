@@ -313,9 +313,14 @@ class BertSelfAttention(nn.Module):
                 self.cnt_out += attn_mask.numel()
                 self.cnt_high+= attn_mask.sum().item()
 
+                seq_lens = attention_mask.squeeze().detach().cpu().numpy()
+                if len(seq_lens.shape)>1:
+                    seq_lens = np.sum(seq_lens, 1)
+
                 #Log Seq Length
-                self.linear_size = np.array([[seq_len, self.config.hidden_size] for seq_len in torch.sum(attention_mask.squeeze()> -1, dim=1).detach().cpu().numpy()])
-                #print(f"Out: {self.cnt_out} High: {self.cnt_high} Spar:{self.cnt_high/self.cnt_out :.4f}")
+                self.linear_size = np.array([[seq_len, self.config.hidden_size] for seq_len in seq_lens])
+
+                # print(f"Out: {self.cnt_out} High: {self.cnt_high} Spar:{self.cnt_high/self.cnt_out :.4f}")
 
         # if getattr(self.config, 'normalize_qk', False):
         #     if self.config.normalize_qk == 'layer_norm':

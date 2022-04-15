@@ -7,6 +7,7 @@ Experiment:
   seed:               42
   debug:              False       #Enable debug output
   gpu_ids:            [2,3]            #GPUs to use
+  log_interval:       1
 
 Model:
   model_name:       levit_128
@@ -31,6 +32,7 @@ Trainer:
   sched:  #LR Scheduler Settings
     name:           cosine        #Name of the LR Scheduler
     warmup_epochs:  5
+    warmup_lr: 1.0e-6
 
 Data:
   name:               imagenet                  #Dataset Name
@@ -60,5 +62,5 @@ Plugins:
     wbits:      8
     abits:      8
     pgabits:    4
-    threshold:  0.01
+    threshold:  0.0
     sparse_bp:  False

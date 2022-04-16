@@ -1,4 +1,5 @@
 #!/bin/bash
+export PROJ_ROOT=$(pwd)
 task_name=${1:-"mrpc"}
 model_name=${2:-"bert-base-uncased"}
 num_train_epochs=${3:-"3"}

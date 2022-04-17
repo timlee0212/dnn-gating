@@ -544,33 +544,44 @@ class PGMaskDumpCallback(TrainerCallback):
         print("Dumping saved masks")
         print("Randomly select 10 samples...")
         output_dict = {}
+        batch_size = list(self.attn_dump.items())[0][1][0].shape[0]
+        num_steps = len(self.attn_dump)
+        sample_population =  batch_size * num_steps
+        sel_idx = np.random.choice(sample_population, 10)
         for name, layer in self.attn_dump.items():
-            all_samples = np.concatenate(layer, 0)
             all_shapes = np.concatenate(self.attn_shape[name], 0)
-            sel_idx = np.random.choice(all_samples.shape[0], 10)
+            all_samples = []
+            for batch_idx in range(len(layer)):
+                all_samples += [ layer[batch_idx][i, :, :] for i in range(layer[batch_idx].shape[0])]
+            
+            #Now we prune the sequence length
+            for sample_idx in range(len(all_samples)):
+                seq_len = all_shapes[sample_idx, 0]
+                all_samples[sample_idx] = all_samples[sample_idx][:seq_len, :seq_len]
+
             intermediate_shapes = all_shapes[sel_idx, :]
             intermediate_shapes[:, 1] = self.config.intermediate_size
 
             output_dict[name] = {
-                "mask": all_samples[sel_idx, :, :, :],
+                "mask": [all_samples[idx] for idx in sel_idx],
                 "attn.qkv": {
-                    "input_shape": all_shapes[sel_idx, :],
-                    "output_shape": all_shapes[sel_idx, :]
+                    "in_shape": all_shapes[sel_idx, :],
+                    "out_shape": all_shapes[sel_idx, :]
                 },
                 "attn.proj":{
-                    "input_shape": all_shapes[sel_idx, :],
-                    "output_shape": all_shapes[sel_idx, :]
+                    "in_shape": all_shapes[sel_idx, :],
+                    "out_shape": all_shapes[sel_idx, :]
                 },
                 "ffn.fc1": {
-                     "input_shape": all_shapes[sel_idx, :],
-                    "output_shape": intermediate_shapes
+                     "in_shape": all_shapes[sel_idx, :],
+                    "out_shape": intermediate_shapes
                 },
                 "ffn.fc2": {
-                     "input_shape": intermediate_shapes,
-                    "output_shape": all_shapes[sel_idx, :]
+                     "in_shape": intermediate_shapes,
+                    "out_shape": all_shapes[sel_idx, :]
                 },
             }
-        np.save(os.path.join(self.export_path, self.model_name+"_dump.npy"), output_dict)
+        np.save("dump.npy", output_dict)
 
 
 

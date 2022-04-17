@@ -229,7 +229,7 @@ def load_model_and_tokenizer(args):
 
     if is_sparse_model:
         model_name = args.model_name_or_path[len("sparse-") :]
-        if model_name.startswith("bert"):
+        if "bert" in model_name:
             from modeling_bert import BertForMaskedLM
 
             SparseModelClass = BertForMaskedLM
@@ -450,15 +450,24 @@ def valid(args):
         print("Dumping saved masks")
         print("Randomly select 10 samples...")
         output_dict = {}
+        sample_population = len(val_loader) * 1 #Batch size is hardcoded as 1
+        sel_idx = np.random.choice(sample_population, 10)
         for name, layer in attn_dump.items():
-            all_samples = np.concatenate(layer, 0)
             all_shapes = np.concatenate(attn_shape[name], 0)
-            sel_idx = np.random.choice(all_samples.shape[0], 10)
+            all_samples = []
+            for batch_idx in range(len(layer)):
+                all_samples += [ layer[batch_idx][i, :, :] for i in range(layer[batch_idx].shape[0])]
+            
+            #Now we prune the sequence length
+            for sample_idx in range(len(all_samples)):
+                seq_len = all_shapes[sample_idx, 0]
+                all_samples[sample_idx] = all_samples[sample_idx][:seq_len, :seq_len]
+
             intermediate_shapes = all_shapes[sel_idx, :]
             intermediate_shapes[:, 1] = config.intermediate_size
 
             output_dict[name] = {
-                "mask": all_samples[sel_idx, :, :, :],
+                "mask": [all_samples[idx] for idx in sel_idx],
                 "attn.qkv": {
                     "in_shape": all_shapes[sel_idx, :],
                     "out_shape": all_shapes[sel_idx, :]
@@ -477,7 +486,7 @@ def valid(args):
                 },
             }
         dump_path = args.dump_path if args.dump_path else args.output_dir
-        np.save(os.path.join(dump_path,  args.config_name if args.config_name else args.model_name_or_path,+"_dump.npy"), output_dict)
+        np.save(os.path.join(dump_path, "dump.npy"), output_dict)
 
 
 def main():

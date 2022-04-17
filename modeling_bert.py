@@ -307,18 +307,19 @@ class BertSelfAttention(nn.Module):
 
             #Calculate the sparsity during evaluation
             if not self.training:
-                attn_mask = (attention_scores > -1).float()
+                attn_mask = (attention_scores + attention_mask > -1).float()
                 #Buffer Mask for Dump
                 self.attn_mask = attn_mask
-                self.cnt_out += attn_mask.numel()
                 self.cnt_high+= attn_mask.sum().item()
 
-                seq_lens = attention_mask.squeeze().detach().cpu().numpy()
-                if len(seq_lens.shape)>1:
-                    seq_lens = np.sum(seq_lens> -1, 1)
-
+                seq_lens = (attention_mask>-1).squeeze().detach().cpu()
+                if len(seq_lens.shape)<2:
+                    #If batch size is 1
+                    seq_lens =  torch.unsqueeze(seq_lens, 0)
+                seq_lens = torch.sum(seq_lens, 1).numpy()
+                self.cnt_out += sum([ attn_mask.shape[1] * seq_len * seq_len for seq_len in seq_lens])
                 #Log Seq Length
-                self.linear_size = np.array([[seq_len, self.config.hidden_size] for seq_len in seq_lens])
+                self.linear_size = np.array([[int(seq_len), self.config.hidden_size] for seq_len in seq_lens])
 
                 # print(f"Out: {self.cnt_out} High: {self.cnt_high} Spar:{self.cnt_high/self.cnt_out :.4f}")
 

@@ -232,12 +232,8 @@ class PGMaskDumpCallback(TrainerCallback):
         for n, m in self.model.named_modules():
             if isinstance(m ,BertSelfAttention):
                 self.attn_dump[n].append(m.attn_mask.detach().cpu().numpy())
-                import matplotlib.pyplot as plt
-                print(m.attn_mask.shape)
                 if m.attn_mask.shape[2] == 48:
                     data = m.attn_mask.cpu().detach()[0,0,:,:]
-                    plt.imshow(data)
-                    plt.show()
                 self.attn_shape[n].append(m.linear_size)
     
     def on_evaluate(self, args, state, control, **kwargs):
@@ -254,11 +250,6 @@ class PGMaskDumpCallback(TrainerCallback):
             all_shapes = np.concatenate(self.attn_shape[name], 0)
             all_samples = []
             for batch_idx in range(len(layer)):
-                import matplotlib.pyplot as plt
-                #print(layer[0].shape)
-                data = layer[0][0,0,:,:]
-                plt.imshow(data)
-                plt.show()
                 all_samples += [ layer[batch_idx][i, :, :] for i in range(layer[batch_idx].shape[0])]
             
             #Now we prune the sequence length
@@ -268,12 +259,7 @@ class PGMaskDumpCallback(TrainerCallback):
                 all_samples[sample_idx] = all_samples[sample_idx][:, :seq_len, :seq_len]
                 print(all_samples[sample_idx].shape)
                 if all_samples[sample_idx].shape[1] == 48:
-                    print(sample_idx)
                     sel_idx.append(sample_idx)
-                    import matplotlib.pyplot as plt
-                    data = all_samples[sample_idx][0,:,:]
-                    plt.imshow(data)
-                    plt.show()
             intermediate_shapes = all_shapes[sel_idx, :]
             intermediate_shapes[:, 1] = self.config.intermediate_size
             

@@ -122,12 +122,6 @@ def gen_sparsity_mask(index,threshold, attention_scores, attn_mask):
     # sparsity_mask[:,:,:,indexes] = 0
     # idx = indexes
     
-    #print(int(idx.shape[0]))
-    #import matplotlib.pyplot as plt
-    ##data = sparsity_mask.cpu().detach()[0,0,:,:]
-    #print(data)
-    #plt.imshow(data)
-    #plt.show()
 
     #idx = accscore.topk(size-int(0.01*size),largest=False).indices
     #print(sparsity_mask[:,:,indexes,:])

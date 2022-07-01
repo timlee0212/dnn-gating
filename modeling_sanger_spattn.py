@@ -79,10 +79,35 @@ def _eval_overall_sparsity(sparsity_mask, attn_mask):
     return overall_sparsity
 
 
-def gen_sparsity_mask(threshold, attention_scores, attn_mask):
+def gen_sparsity_mask(index,threshold, attention_scores, attn_mask):
+    if index != []:
+        sparsity_mask = 1 - attention_scores*0
+        sparsity_mask[:,:,index,:] = 0
+        sparsity_mask[:,:,:,index] = 0 
+        attention_scores *= sparsity_mask       
     attention_scores = F.softmax(attention_scores+attn_mask, dim=-1)
-    sparsity_mask = attention_scores > threshold
-    sparsity_mask = sparsity_mask.type_as(attention_scores)
+    accscore = attention_scores.sum(1).sum(1)
+    size = attn_mask.shape[3]
+    if index != []:
+        indexes = accscore.topk(int(0.05*size+0.95*index.shape[0]),largest=False).indices[0]
+    else:
+        indexes = accscore.topk(int(0.05*size),largest=False).indices[0]
+    sparsity_mask = 1 - attention_scores*0
+    sparsity_mask[:,:,indexes,:] = 0
+    sparsity_mask[:,:,:,indexes] = 0
+    idx = indexes
+    
+    #print(int(idx.shape[0]))
+    #import matplotlib.pyplot as plt
+    ##data = sparsity_mask.cpu().detach()[0,0,:,:]
+    #print(data)
+    #plt.imshow(data)
+    #plt.show()
+
+    #idx = accscore.topk(size-int(0.01*size),largest=False).indices
+    #print(sparsity_mask[:,:,indexes,:])
+    #sparsity_mask = attention_scores > threshold
+    #sparsity_mask = sparsity_mask.type_as(attention_scores)
 
     # if LOG_LOAD_BALANCE and random.random() < 3e-2:
     #     attn_mask = (attn_mask > -1).float()
@@ -98,7 +123,8 @@ def gen_sparsity_mask(threshold, attention_scores, attn_mask):
     
     
     sparsity_mask = (1.0 - sparsity_mask) * -10000.0
-    return sparsity_mask.detach()
+    #print(sparsity_mask.sum())
+    return sparsity_mask.detach(),idx
 
 
 def quant_qk_matmul(query_layer, key_layer, config, quant_matmul=None):
@@ -117,11 +143,11 @@ def quant_qk_matmul(query_layer, key_layer, config, quant_matmul=None):
     return quant_attention_scores
 
 
-def prune_attn_scores(attn_scores, attn_mask, config):
+def prune_attn_scores(index,attn_scores, attn_mask, config):
     assert getattr(config, 'prune_score', False)
     threshold = config.prune_score['threshold']
-    sparsity_mask = gen_sparsity_mask(threshold, attn_scores, attn_mask)
-    return sparsity_mask
+    sparsity_mask, idx = gen_sparsity_mask(index,threshold, attn_scores, attn_mask)
+    return sparsity_mask, idx 
 
 
 # def sanger_sparse_attention(query_layer, key_layer, attention_mask, config, quant_matmul=None):

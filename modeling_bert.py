@@ -323,11 +323,6 @@ class BertSelfAttention(nn.Module):
             #self.attn_mask = attn_mask
             #Calculate the sparsity during evaluation
             if not self.training:
-                #import matplotlib.pyplot as plt
-                #data = sparsity_mask.cpu().detach()[0,0,:,:]
-                #print(data)
-                #plt.imshow(data)
-                #plt.show()
                 #Buffer Mask for Dump
                 attn_mask = (sparsity_mask > -1).float()
                 self.attn_mask = attn_mask

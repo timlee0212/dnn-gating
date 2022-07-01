@@ -12,7 +12,7 @@ if [ "$log_load_balance" = true ] ; then
   export LOG_LOAD_BALANCE=true
 fi
 
-python -m pdb  run_glue.py \
+python run_glue.py \
     --model_name_or_path sparse-$model_name \
     --config_name $CONFIG_ROOT/$model_config \
     --task_name $task_name \

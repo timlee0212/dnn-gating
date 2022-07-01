@@ -303,7 +303,6 @@ class BertSelfAttention(nn.Module):
             attention_scores = attention_scores / math.sqrt(self.attention_head_size)
    
         self.attn_mask = attention_scores
-        print('INSIDE:', self.attn_mask.shape)
         self.cnt_high+= 0#attention_scores.sum().item()
 
         seq_lens = (attention_mask>-1).squeeze().detach().cpu()

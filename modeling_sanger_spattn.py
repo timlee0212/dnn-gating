@@ -80,6 +80,8 @@ def _eval_overall_sparsity(sparsity_mask, attn_mask):
 
 
 def gen_sparsity_mask(index,threshold, attention_scores, attn_mask):
+    INITIAL_RATIO = 0.85
+    LATER_RATIO = 0.85
     #Initilize sparsity mask
     sparsity_mask = torch.ones_like(attention_scores)
     pre_pruned = torch.zeros(attention_scores.shape[0])
@@ -102,8 +104,8 @@ def gen_sparsity_mask(index,threshold, attention_scores, attn_mask):
         #If batch size is 1
         seq_lens =  torch.unsqueeze(seq_lens, 0)
     #(batch_size)
-    seq_lens = torch.sum(seq_lens, 1)
-    thresh_idx = torch.round(seq_lens * 0.95).int().numpy()
+    seq_lens = torch.sum(seq_lens, 1) - pre_pruned
+    thresh_idx = torch.round(seq_lens * (INITIAL_RATIO if torch.sum(pre_pruned)==0 else LATER_RATIO)).int().numpy()
     #(batch_size)
     sorted, indices = torch.sort(accscore,descending=True, dim=-1)
     threshold = sorted[list(range(seq_lens.shape[0])), thresh_idx]

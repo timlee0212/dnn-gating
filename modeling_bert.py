@@ -234,6 +234,8 @@ class BertSelfAttention(nn.Module):
 
         self.dropout = nn.Dropout(config.attention_probs_dropout_prob)
 
+        #self.attn_mask = None
+
         #For Calculating Sparsity
         self.cnt_out = 0
         self.cnt_high = 0
@@ -270,7 +272,7 @@ class BertSelfAttention(nn.Module):
         x = torch.reshape(x, new_x_shape)
         return x.permute(0, 2, 3, 1)
 
-    def forward(self, hidden_states, attention_mask, *args, **kwargs):
+    def forward(self, index, hidden_states, attention_mask, *args, **kwargs):
         # assume attention_mask: [batch_size, um_attention_heads, seq_len, seq_len]
 
         # hidden_states: [batch_size, seq_len, config.hidden_size]
@@ -299,16 +301,34 @@ class BertSelfAttention(nn.Module):
             quant_attention_scores = None
             attention_scores =  torch.matmul(query_layer, key_layer)
             attention_scores = attention_scores / math.sqrt(self.attention_head_size)
+   
+        self.attn_mask = attention_scores
+        self.cnt_high+= 0#attention_scores.sum().item()
+
+        seq_lens = (attention_mask>-1).squeeze().detach().cpu()
+        if len(seq_lens.shape)<2:
+            #If batch size is 1
+            seq_lens =  torch.unsqueeze(seq_lens, 0)
+        seq_lens = torch.sum(seq_lens, 1).numpy()
+        self.cnt_out += 0#sum([ attn_mask.shape[1] * seq_len * seq_len for seq_len in seq_lens])
+        #Log Seq Length
+        self.linear_size = np.array([[int(seq_len), self.config.hidden_size] for seq_len in seq_lens])
 
         if do_prune:
-            attn_scores = quant_attention_scores if do_quant else attention_scores 
-            sparsity_mask = prune_attn_scores(attn_scores, attention_mask, self.config)
+            attention_scores = quant_attention_scores if do_quant else attention_scores 
+            sparsity_mask, idx = prune_attn_scores(index, attention_scores, attention_mask, self.config)
             attention_scores += sparsity_mask
-
+            
+            #self.attn_mask = attn_mask
             #Calculate the sparsity during evaluation
             if not self.training:
-                attn_mask = (attention_scores + attention_mask > -1).float()
+                #import matplotlib.pyplot as plt
+                #data = sparsity_mask.cpu().detach()[0,0,:,:]
+                #print(data)
+                #plt.imshow(data)
+                #plt.show()
                 #Buffer Mask for Dump
+                attn_mask = (sparsity_mask > -1).float()
                 self.attn_mask = attn_mask
                 self.cnt_high+= attn_mask.sum().item()
 
@@ -376,7 +396,7 @@ class BertSelfAttention(nn.Module):
             apply_static_sparsity_mask(self.static_sparsity_mask, attention_scores)
 
         # Apply the attention mask is (precomputed for all layers in BertModel forward() function)
-        attention_scores = attention_scores + attention_mask
+        #attention_scores = attn_scores #+ attention_mask
 
         # if getattr(self.config, 'softmax_variant', False):
         #     # from entmax import sparsemax, entmax15, entmax_bisect
@@ -400,7 +420,7 @@ class BertSelfAttention(nn.Module):
         # context_layer: [batch_size, seq_len, num_attention_heads * attention_head_size = config.hidden_size]
         new_context_layer_shape = context_layer.size()[:-2] + (self.all_head_size,)
         context_layer = torch.reshape(context_layer, new_context_layer_shape)
-        return context_layer
+        return context_layer, idx
 
 
 class BertSelfOutput(nn.Module):
@@ -444,6 +464,7 @@ class BertAttention(nn.Module):
 
     def forward(
         self,
+        index,
         hidden_states,
         attention_mask=None,
         head_mask=None,
@@ -452,7 +473,8 @@ class BertAttention(nn.Module):
         past_key_value=None,
         output_attentions=False,
     ):
-        self_outputs = self.self(
+        self_outputs,idx = self.self(
+            index,
             hidden_states,
             attention_mask,
             head_mask,
@@ -463,7 +485,7 @@ class BertAttention(nn.Module):
         )
         attention_output = self.output(self_outputs, hidden_states)
         outputs = (attention_output,) + (self_outputs,)  # add attentions if we output them
-        return outputs
+        return outputs, idx
 
 
 class BertIntermediate(nn.Module):
@@ -511,6 +533,7 @@ class BertLayer(nn.Module):
 
     def forward(
         self,
+        index,
         hidden_states,
         attention_mask=None,
         head_mask=None,
@@ -521,7 +544,8 @@ class BertLayer(nn.Module):
     ):
         # decoder uni-directional self-attention cached key/values tuple is at positions 1,2
         self_attn_past_key_value = past_key_value[:2] if past_key_value is not None else None
-        self_attention_outputs = self.attention(
+        self_attention_outputs, idx = self.attention(
+            index,
             hidden_states,
             attention_mask,
             head_mask,
@@ -570,7 +594,7 @@ class BertLayer(nn.Module):
         if self.is_decoder:
             outputs = outputs + (present_key_value,)
 
-        return outputs
+        return outputs, idx
 
     def feed_forward_chunk(self, attention_output):
         intermediate_output = self.intermediate(attention_output)
@@ -602,6 +626,7 @@ class BertEncoder(nn.Module):
         all_cross_attentions = () if output_attentions and self.config.add_cross_attention else None
 
         next_decoder_cache = () if use_cache else None
+        index = []
         for i, layer_module in enumerate(self.layer):
             if output_hidden_states:
                 all_hidden_states = all_hidden_states + (hidden_states,)
@@ -633,7 +658,8 @@ class BertEncoder(nn.Module):
                     encoder_attention_mask,
                 )
             else:
-                layer_outputs = layer_module(
+                layer_outputs, idx = layer_module(
+                    index,
                     hidden_states,
                     attention_mask,
                     layer_head_mask,
@@ -642,6 +668,7 @@ class BertEncoder(nn.Module):
                     past_key_value,
                     output_attentions,
                 )
+                index = idx
 
             hidden_states = layer_outputs[0]
             if use_cache:

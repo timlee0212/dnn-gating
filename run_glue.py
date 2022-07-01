@@ -255,7 +255,7 @@ class PGMaskDumpCallback(TrainerCallback):
             all_samples = []
             for batch_idx in range(len(layer)):
                 import matplotlib.pyplot as plt
-                print(layer[0].shape)
+                #print(layer[0].shape)
                 data = layer[0][0,0,:,:]
                 plt.imshow(data)
                 plt.show()
@@ -265,7 +265,7 @@ class PGMaskDumpCallback(TrainerCallback):
             
             for sample_idx in range(len(all_samples)):
                 seq_len = all_shapes[sample_idx, 0]
-                all_samples[sample_idx] = all_samples[sample_idx][:seq_len, :seq_len]
+                all_samples[sample_idx] = all_samples[sample_idx][:, :seq_len, :seq_len]
                 print(all_samples[sample_idx].shape)
                 if all_samples[sample_idx].shape[1] == 48:
                     print(sample_idx)

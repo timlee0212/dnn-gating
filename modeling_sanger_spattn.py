@@ -80,11 +80,13 @@ def _eval_overall_sparsity(sparsity_mask, attn_mask):
 
 
 def gen_sparsity_mask(index,threshold, attention_scores, attn_mask):
+    #Initilize sparsity mask
+    sparsity_mask = torch.ones_like(attention_scores)
     if index != []:
-        sparsity_mask = 1 - attention_scores*0
-        sparsity_mask[:,:,index,:] = 0
-        sparsity_mask[:,:,:,index] = 0 
-        attention_scores *= sparsity_mask       
+        propagated_mask = sparsity_mask
+        propagated_mask[:,:,index,:] = 0
+        propagated_mask[:,:,:,index] = 0 
+        attention_scores *= propagated_mask  
     attention_scores = F.softmax(attention_scores+attn_mask, dim=-1)
     accscore = attention_scores.sum(1).sum(1)
     size = attn_mask.shape[3]
@@ -92,7 +94,7 @@ def gen_sparsity_mask(index,threshold, attention_scores, attn_mask):
         indexes = accscore.topk(int(0.05*size+0.95*index.shape[0]),largest=False).indices[0]
     else:
         indexes = accscore.topk(int(0.05*size),largest=False).indices[0]
-    sparsity_mask = 1 - attention_scores*0
+    #Shallow copy is fine since we know previously set to zero will also be set to zero
     sparsity_mask[:,:,indexes,:] = 0
     sparsity_mask[:,:,:,indexes] = 0
     idx = indexes

@@ -84,20 +84,43 @@ def gen_sparsity_mask(index,threshold, attention_scores, attn_mask):
     sparsity_mask = torch.ones_like(attention_scores)
     if index != []:
         propagated_mask = sparsity_mask
-        propagated_mask[:,:,index,:] = 0
-        propagated_mask[:,:,:,index] = 0 
+        assert propagated_mask.shape[0] == len(index), "Pruning Index mismatch"
+        for i in range(propagated_mask.shape[0]):
+            propagated_mask[i,:,index[i],:] = 0
+            propagated_mask[i,:,:,index[i]] = 0 
         attention_scores *= propagated_mask  
     attention_scores = F.softmax(attention_scores+attn_mask, dim=-1)
+
+    #(sample, token)
     accscore = attention_scores.sum(1).sum(1)
-    size = attn_mask.shape[3]
-    if index != []:
-        indexes = accscore.topk(int(0.05*size+0.95*index.shape[0]),largest=False).indices[0]
-    else:
-        indexes = accscore.topk(int(0.05*size),largest=False).indices[0]
+    sparsity_mask *= accscore.unsqueeze(1).unsqueeze(1)
+
+    seq_lens = (attn_mask>-1).squeeze().detach().cpu()
+    if len(seq_lens.shape)<2:
+        #If batch size is 1
+        seq_lens =  torch.unsqueeze(seq_lens, 0)
+    #(batch_size)
+    seq_lens = torch.sum(seq_lens, 1)
+    thresh_idx = torch.round(seq_lens * 0.95).int().numpy()
+    #(batch_size)
+    sorted, indices = torch.sort(accscore,descending=True, dim=-1)
+    threshold = sorted[list(range(seq_lens.shape[0])), thresh_idx]
+    idx = []
+    for i in range(seq_lens.shape[0]):
+        idx.append(indices[i, thresh_idx[i]:])
+    #(batch_size, head, row, col)
+    threshold = threshold.unsqueeze(1).unsqueeze(1).unsqueeze(1)
+    sparsity_mask = torch.logical_and(sparsity_mask>threshold, torch.transpose(sparsity_mask, 2,3) >threshold)
+
+    # size = attn_mask.shape[3]
+    # if index != []:
+    #     indexes = accscore.topk(int(0.05*size+0.95*index.shape[0]),largest=False).indices[0]
+    # else:
+    #     indexes = accscore.topk(int(0.05*size),largest=False).indices[0]
     #Shallow copy is fine since we know previously set to zero will also be set to zero
-    sparsity_mask[:,:,indexes,:] = 0
-    sparsity_mask[:,:,:,indexes] = 0
-    idx = indexes
+    # sparsity_mask[:,:,indexes,:] = 0
+    # sparsity_mask[:,:,:,indexes] = 0
+    # idx = indexes
     
     #print(int(idx.shape[0]))
     #import matplotlib.pyplot as plt
@@ -124,7 +147,7 @@ def gen_sparsity_mask(index,threshold, attention_scores, attn_mask):
     #     csv_file.write(','.join([f'{stat:.6f}' for stat in logs]) + '\n')
     
     
-    sparsity_mask = (1.0 - sparsity_mask) * -10000.0
+    sparsity_mask = torch.logical_not(sparsity_mask) * -10000.0
     #print(sparsity_mask.sum())
     return sparsity_mask.detach(),idx
 

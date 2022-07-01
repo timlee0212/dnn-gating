@@ -82,12 +82,14 @@ def _eval_overall_sparsity(sparsity_mask, attn_mask):
 def gen_sparsity_mask(index,threshold, attention_scores, attn_mask):
     #Initilize sparsity mask
     sparsity_mask = torch.ones_like(attention_scores)
+    pre_pruned = torch.zeros(attention_scores.shape[0])
     if index != []:
         propagated_mask = sparsity_mask
         assert propagated_mask.shape[0] == len(index), "Pruning Index mismatch"
         for i in range(propagated_mask.shape[0]):
             propagated_mask[i,:,index[i],:] = 0
             propagated_mask[i,:,:,index[i]] = 0 
+            pre_pruned[i] = len(index[i])
         attention_scores *= propagated_mask  
     attention_scores = F.softmax(attention_scores+attn_mask, dim=-1)
 

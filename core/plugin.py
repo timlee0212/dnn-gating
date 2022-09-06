@@ -35,6 +35,7 @@ class Plugin(metaclass=ABCMeta):
         """
         The hook at the head of each epoch.
         """
+        pass
 
     def preForwardHook(self, model, inputs, targets, iter_id):
         """

@@ -136,3 +136,4 @@ cifar10_model/
 imagenet_model/
 checkpoint/
 ckpt/
+data/

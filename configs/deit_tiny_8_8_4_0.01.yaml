@@ -54,5 +54,5 @@ Plugins:
     wbits:      8
     abits:      8
     pgabits:    4
-    threshold:  0.01
+    threshold:  0.00
     old_rp: True
